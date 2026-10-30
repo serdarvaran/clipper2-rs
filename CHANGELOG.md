@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-31)
 
 First release: a port of Clipper2 2.0.1 (upstream commit `21ebba0`).
 
