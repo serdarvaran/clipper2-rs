@@ -1,0 +1,5 @@
+Upstream: https://github.com/AngusJohnson/Clipper2
+Tag: Clipper2_2.0.1
+Commit: 21ebba05db8894f0c7217ad35ea518080f324946
+Contents: CPP/Clipper2Lib, CPP/Tests, CPP/Utils, Tests (data), LICENSE.
+Used only by the clipper2-ref test crate and the test suite; not part of the published crate.

@@ -1,0 +1,13 @@
+[package]
+name = "clipper2-rs"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Pure Rust port of the Clipper2 polygon clipping and offsetting library"
+
+[features]
+usingz = []
+
+[dev-dependencies]
+clipper2-ref = { path = "../clipper2-ref" }
