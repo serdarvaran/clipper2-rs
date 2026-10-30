@@ -5,7 +5,9 @@ mod clipper_d;
 #[allow(dead_code)] // TEMP: internal helpers are consumed by later tasks; removed in task 16
 mod core;
 mod engine;
+mod offset;
 mod polytree;
+mod utils;
 
 pub use crate::core::{
     ClipType, ClipperError, Coord, FillRule, MAX_COORD, MAX_DECIMAL_PRECISION, MIN_COORD, Path,
@@ -21,4 +23,8 @@ pub use clipper_d::{ClipperD, SolutionD};
 #[cfg(feature = "usingz")]
 pub use engine::ZCallback64;
 pub use engine::{Clipper64, PathType, ReuseableDataContainer64, Solution};
+pub use offset::{
+    ClipperOffset, DeltaCallback64, EndType, JoinType, inflate_paths, inflate_paths_d,
+};
 pub use polytree::{PolyNode, PolyNode64, PolyNodeD, PolyTree, PolyTree64, PolyTreeD};
+pub use utils::{ellipse, ellipse_rect};

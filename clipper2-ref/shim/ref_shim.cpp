@@ -188,10 +188,12 @@ int32_t FN(booleanD)(uint8_t ct, uint8_t fr, int32_t precision, int32_t preserve
   }
 }
 
+// tree: 0 = paths, 1 = PolyTree64, 2 = paths with a delta callback that returns
+// deltas[call_index % delta_count] (calls counted from 0 per Execute).
 int32_t FN(offset64)(double delta, double miter_limit, double arc_tolerance, int32_t preserve_collinear,
                      int32_t reverse_solution, int32_t tree, In64 paths, const uint32_t* path_group,
                      size_t group_count, const uint8_t* join_types, const uint8_t* end_types,
-                     RefOut** out) {
+                     const double* deltas, size_t delta_count, RefOut** out) {
   try {
     ClipperOffset co(miter_limit, arc_tolerance, preserve_collinear != 0, reverse_solution != 0);
 #ifdef USINGZ
@@ -205,15 +207,34 @@ int32_t FN(offset64)(double delta, double miter_limit, double arc_tolerance, int
       co.AddPaths(group, static_cast<JoinType>(join_types[g]), static_cast<EndType>(end_types[g]));
     }
     RefOut* r = new RefOut();
-    if (tree) {
+    if (tree == 1) {
       PolyTree64 pt;
       co.Execute(delta, pt);
       push_tree(r, pt);
+    } else if (tree == 2) {
+      size_t calls = 0;
+      Paths64 solution;
+      co.Execute([&](const Path64&, const PathD&, size_t, size_t) { return deltas[calls++ % delta_count]; },
+                 solution);
+      push_paths(r, solution, 0);
     } else {
       Paths64 solution;
       co.Execute(delta, solution);
       push_paths(r, solution, 0);
     }
+    *out = r;
+    return OK;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
+int32_t FN(inflateD)(double delta, uint8_t jt, uint8_t et, double miter_limit, int32_t precision,
+                     double arc_tolerance, InD paths, RefOut** out) {
+  try {
+    RefOut* r = new RefOut();
+    push_paths(r, InflatePaths(to_paths(paths), delta, static_cast<JoinType>(jt), static_cast<EndType>(et),
+                               miter_limit, precision, arc_tolerance), 0);
     *out = r;
     return OK;
   } catch (...) {

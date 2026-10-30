@@ -201,3 +201,48 @@ fn input_z_is_kept_and_crossings_use_the_callback() {
         (Some(1), Some(10), Some(11_011), Some(11_011))
     );
 }
+
+#[test]
+fn random_z_offset_matches_reference() {
+    use clipper2_rs::{ClipperOffset, EndType, JoinType};
+    let jts = [
+        JoinType::Square,
+        JoinType::Bevel,
+        JoinType::Round,
+        JoinType::Miter,
+    ];
+    let ets = [
+        EndType::Polygon,
+        EndType::Joined,
+        EndType::Butt,
+        EndType::Square,
+        EndType::Round,
+    ];
+    for seed in 0..cases() as u64 {
+        let mut rng = Rng::new(seed * 67_867_967 + 1);
+        let (jt, et) = (jts[rng.below(4)], ets[rng.below(5)]);
+        let paths = if et == EndType::Polygon {
+            random_paths(&mut rng, Shape::Medium)
+        } else {
+            random_open_paths(&mut rng, Shape::Medium)
+        };
+        let paths = with_z(&mut rng, paths);
+        let delta = rng.range_f64(-30.0, 60.0);
+        let mut co = ClipperOffset::new(2.0, 0.0, false, false);
+        co.set_z_callback(Some(rule64()));
+        co.add_paths(&paths, jt, et);
+        let o = co.execute(delta).unwrap();
+        let g = clipper2_ref::OffsetGroup {
+            paths: to_ref_z(&paths),
+            join_type: jt as u8,
+            end_type: et as u8,
+        };
+        let r = z::offset(delta, &[g], 2.0, 0.0, false, false).unwrap();
+        assert_same(
+            &format!("z-offset-{seed}"),
+            &format!("{jt:?} {et:?} {delta}\n{:?}", to_ref_z(&paths)),
+            &to_ref_z(&o),
+            &r,
+        );
+    }
+}

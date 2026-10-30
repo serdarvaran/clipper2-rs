@@ -351,6 +351,19 @@ macro_rules! reference_api {
                 group_count: usize,
                 jt: *const u8,
                 et: *const u8,
+                deltas: *const f64,
+                delta_count: usize,
+                out: *mut *mut RefOut,
+            ) -> i32;
+            #[link_name = concat!($prefix, "inflateD")]
+            fn inflate_d_raw(
+                delta: f64,
+                jt: u8,
+                et: u8,
+                miter: f64,
+                precision: i32,
+                arc: f64,
+                paths: InD,
                 out: *mut *mut RefOut,
             ) -> i32;
             #[link_name = concat!($prefix, "rectclip64")]
@@ -571,7 +584,8 @@ macro_rules! reference_api {
             arc: f64,
             pc: bool,
             rev: bool,
-            tree: bool,
+            mode: i32,
+            deltas: &[f64],
         ) -> Result<Decoded<$P>, String> {
             let mut all = Vec::new();
             let mut path_group = Vec::new();
@@ -591,12 +605,14 @@ macro_rules! reference_api {
                     arc,
                     pc as i32,
                     rev as i32,
-                    tree as i32,
+                    mode,
                     flat.input(),
                     path_group.as_ptr(),
                     groups.len(),
                     jt.as_ptr(),
                     et.as_ptr(),
+                    deltas.as_ptr(),
+                    deltas.len(),
                     &mut out,
                 )
             };
@@ -619,9 +635,61 @@ macro_rules! reference_api {
                 arc_tolerance,
                 preserve_collinear,
                 reverse_solution,
-                false,
+                0,
+                &[],
             )
             .map(|d| d.paths)
+        }
+
+        /// `ClipperOffset::Execute(DeltaCallback64, Paths64&)`; the callback returns
+        /// `deltas[call_index % deltas.len()]`.
+        pub fn offset_with_delta_table(
+            groups: &[OffsetGroup<$P>],
+            deltas: &[f64],
+            miter_limit: f64,
+            arc_tolerance: f64,
+            preserve_collinear: bool,
+            reverse_solution: bool,
+        ) -> Result<Vec<Vec<$P>>, String> {
+            run_offset(
+                1.0,
+                groups,
+                miter_limit,
+                arc_tolerance,
+                preserve_collinear,
+                reverse_solution,
+                2,
+                deltas,
+            )
+            .map(|d| d.paths)
+        }
+
+        /// `InflatePaths(PathsD, ...)`.
+        pub fn inflate_paths_d(
+            paths: &[Vec<$PD>],
+            delta: f64,
+            join_type: u8,
+            end_type: u8,
+            miter_limit: f64,
+            precision: i32,
+            arc_tolerance: f64,
+        ) -> Result<Vec<Vec<$PD>>, String> {
+            let flat = FlatD::new(paths);
+            let mut out = ptr::null_mut();
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                inflate_d_raw(
+                    delta,
+                    join_type,
+                    end_type,
+                    miter_limit,
+                    precision,
+                    arc_tolerance,
+                    flat.input(),
+                    &mut out,
+                )
+            };
+            take_d(code, out).map(|d| d.paths)
         }
 
         /// `ClipperOffset::Execute(delta, PolyTree64&)`.
@@ -640,7 +708,8 @@ macro_rules! reference_api {
                 arc_tolerance,
                 preserve_collinear,
                 reverse_solution,
-                true,
+                1,
+                &[],
             )
             .map(into_tree)
         }
