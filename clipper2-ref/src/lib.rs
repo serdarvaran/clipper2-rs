@@ -4,6 +4,8 @@
 //! (`ClipType::Intersection = 1`, `FillRule::NonZero = 1`, ...). The `z` module is the
 //! `USINGZ` build, whose Z callback sets `z = e1bot.z + e1top.z + e2bot.z + e2top.z`.
 
+#![allow(clippy::too_many_arguments)] // mirrors the upstream signatures
+
 use std::ptr;
 
 /// A 2D (`(x, y)`) or 3D (`(x, y, z)`) integer point as exchanged with the reference.
@@ -102,7 +104,11 @@ struct Flat {
 
 impl Flat {
     fn new<P: RefPoint>(paths: &[Vec<P>]) -> Self {
-        let mut flat = Flat { xy: Vec::new(), z: Vec::new(), lens: Vec::new() };
+        let mut flat = Flat {
+            xy: Vec::new(),
+            z: Vec::new(),
+            lens: Vec::new(),
+        };
         for path in paths {
             flat.lens.push(path.len() as u32);
             for p in path {
@@ -115,7 +121,12 @@ impl Flat {
     }
 
     fn input(&self) -> In64 {
-        In64 { xy: self.xy.as_ptr(), z: self.z.as_ptr(), lens: self.lens.as_ptr(), count: self.lens.len() }
+        In64 {
+            xy: self.xy.as_ptr(),
+            z: self.z.as_ptr(),
+            lens: self.lens.as_ptr(),
+            count: self.lens.len(),
+        }
     }
 }
 
@@ -126,7 +137,11 @@ struct Decoded<P> {
 }
 
 fn slice<'a, T>(ptr: *const T, len: usize) -> &'a [T] {
-    if len == 0 { &[] } else { unsafe { std::slice::from_raw_parts(ptr, len) } }
+    if len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, len) }
+    }
 }
 
 fn decode<P: RefPoint>(view: &RefView) -> Decoded<P> {
@@ -138,7 +153,11 @@ fn decode<P: RefPoint>(view: &RefView) -> Decoded<P> {
     for &len in lens {
         let mut path = Vec::with_capacity(len as usize);
         for _ in 0..len {
-            path.push(P::from_xyz(xy[2 * k], xy[2 * k + 1], z.get(k).copied().unwrap_or(0)));
+            path.push(P::from_xyz(
+                xy[2 * k],
+                xy[2 * k + 1],
+                z.get(k).copied().unwrap_or(0),
+            ));
             k += 1;
         }
         paths.push(path);
@@ -159,20 +178,34 @@ fn status(code: i32) -> Result<(), String> {
 }
 
 fn split_open<P>(d: Decoded<P>) -> Solution<P> {
-    let mut s = Solution { closed: Vec::new(), open: Vec::new() };
+    let mut s = Solution {
+        closed: Vec::new(),
+        open: Vec::new(),
+    };
     for (path, flags) in d.paths.into_iter().zip(d.flags) {
-        if flags & FLAG_OPEN != 0 { s.open.push(path) } else { s.closed.push(path) }
+        if flags & FLAG_OPEN != 0 {
+            s.open.push(path)
+        } else {
+            s.closed.push(path)
+        }
     }
     s
 }
 
 fn into_tree<P>(d: Decoded<P>) -> Tree<P> {
-    let mut t = Tree { nodes: Vec::new(), open: Vec::new() };
+    let mut t = Tree {
+        nodes: Vec::new(),
+        open: Vec::new(),
+    };
     for ((path, parent), flags) in d.paths.into_iter().zip(d.parents).zip(d.flags) {
         if flags & FLAG_OPEN != 0 {
             t.open.push(path);
         } else {
-            t.nodes.push(Node { path, parent, is_hole: flags & FLAG_HOLE != 0 });
+            t.nodes.push(Node {
+                path,
+                parent,
+                is_hole: flags & FLAG_HOLE != 0,
+            });
         }
     }
     t
@@ -184,14 +217,49 @@ macro_rules! reference_api {
 
         unsafe extern "C" {
             #[link_name = concat!($prefix, "boolean64")]
-            fn boolean64(ct: u8, fr: u8, pc: i32, rev: i32, tree: i32, s: In64, so: In64, c: In64, out: *mut *mut RefOut) -> i32;
+            fn boolean64(
+                ct: u8,
+                fr: u8,
+                pc: i32,
+                rev: i32,
+                tree: i32,
+                s: In64,
+                so: In64,
+                c: In64,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "offset64")]
-            fn offset64(delta: f64, miter: f64, arc: f64, pc: i32, rev: i32, tree: i32, paths: In64,
-                        path_group: *const u32, group_count: usize, jt: *const u8, et: *const u8, out: *mut *mut RefOut) -> i32;
+            fn offset64(
+                delta: f64,
+                miter: f64,
+                arc: f64,
+                pc: i32,
+                rev: i32,
+                tree: i32,
+                paths: In64,
+                path_group: *const u32,
+                group_count: usize,
+                jt: *const u8,
+                et: *const u8,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "rectclip64")]
-            fn rectclip64(l: i64, t: i64, r: i64, b: i64, lines: i32, paths: In64, out: *mut *mut RefOut) -> i32;
+            fn rectclip64(
+                l: i64,
+                t: i64,
+                r: i64,
+                b: i64,
+                lines: i32,
+                paths: In64,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "triangulate64")]
-            fn triangulate64(delaunay: i32, paths: In64, result: *mut i32, out: *mut *mut RefOut) -> i32;
+            fn triangulate64(
+                delaunay: i32,
+                paths: In64,
+                result: *mut i32,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "view")]
             fn view(r: *const RefOut, v: *mut RefView);
             #[link_name = concat!($prefix, "free")]
@@ -214,25 +282,90 @@ macro_rules! reference_api {
             status(code).map(|_| decoded)
         }
 
-        fn run_boolean(ct: u8, fr: u8, pc: bool, rev: bool, tree: bool, s: &[Vec<$P>], so: &[Vec<$P>], c: &[Vec<$P>]) -> Result<Decoded<$P>, String> {
+        fn run_boolean(
+            ct: u8,
+            fr: u8,
+            pc: bool,
+            rev: bool,
+            tree: bool,
+            s: &[Vec<$P>],
+            so: &[Vec<$P>],
+            c: &[Vec<$P>],
+        ) -> Result<Decoded<$P>, String> {
             let (s, so, c) = (Flat::new(s), Flat::new(so), Flat::new(c));
             let mut out = ptr::null_mut();
             // SAFETY: inputs outlive the call; the shim copies them.
-            let code = unsafe { boolean64(ct, fr, pc as i32, rev as i32, tree as i32, s.input(), so.input(), c.input(), &mut out) };
+            let code = unsafe {
+                boolean64(
+                    ct,
+                    fr,
+                    pc as i32,
+                    rev as i32,
+                    tree as i32,
+                    s.input(),
+                    so.input(),
+                    c.input(),
+                    &mut out,
+                )
+            };
             take(code, out)
         }
 
         /// `Clipper64::Execute` into closed and open paths.
-        pub fn boolean(ct: u8, fr: u8, preserve_collinear: bool, reverse_solution: bool, subjects: &[Vec<$P>], open_subjects: &[Vec<$P>], clips: &[Vec<$P>]) -> Result<Solution<$P>, String> {
-            run_boolean(ct, fr, preserve_collinear, reverse_solution, false, subjects, open_subjects, clips).map(split_open)
+        pub fn boolean(
+            ct: u8,
+            fr: u8,
+            preserve_collinear: bool,
+            reverse_solution: bool,
+            subjects: &[Vec<$P>],
+            open_subjects: &[Vec<$P>],
+            clips: &[Vec<$P>],
+        ) -> Result<Solution<$P>, String> {
+            run_boolean(
+                ct,
+                fr,
+                preserve_collinear,
+                reverse_solution,
+                false,
+                subjects,
+                open_subjects,
+                clips,
+            )
+            .map(split_open)
         }
 
         /// `Clipper64::Execute` into a `PolyTree64` (flattened, DFS pre-order) and open paths.
-        pub fn boolean_tree(ct: u8, fr: u8, preserve_collinear: bool, reverse_solution: bool, subjects: &[Vec<$P>], open_subjects: &[Vec<$P>], clips: &[Vec<$P>]) -> Result<Tree<$P>, String> {
-            run_boolean(ct, fr, preserve_collinear, reverse_solution, true, subjects, open_subjects, clips).map(into_tree)
+        pub fn boolean_tree(
+            ct: u8,
+            fr: u8,
+            preserve_collinear: bool,
+            reverse_solution: bool,
+            subjects: &[Vec<$P>],
+            open_subjects: &[Vec<$P>],
+            clips: &[Vec<$P>],
+        ) -> Result<Tree<$P>, String> {
+            run_boolean(
+                ct,
+                fr,
+                preserve_collinear,
+                reverse_solution,
+                true,
+                subjects,
+                open_subjects,
+                clips,
+            )
+            .map(into_tree)
         }
 
-        fn run_offset(delta: f64, groups: &[OffsetGroup<$P>], miter: f64, arc: f64, pc: bool, rev: bool, tree: bool) -> Result<Decoded<$P>, String> {
+        fn run_offset(
+            delta: f64,
+            groups: &[OffsetGroup<$P>],
+            miter: f64,
+            arc: f64,
+            pc: bool,
+            rev: bool,
+            tree: bool,
+        ) -> Result<Decoded<$P>, String> {
             let mut all = Vec::new();
             let mut path_group = Vec::new();
             for (g, group) in groups.iter().enumerate() {
@@ -245,26 +378,81 @@ macro_rules! reference_api {
             let mut out = ptr::null_mut();
             // SAFETY: inputs outlive the call; the shim copies them.
             let code = unsafe {
-                offset64(delta, miter, arc, pc as i32, rev as i32, tree as i32, flat.input(), path_group.as_ptr(), groups.len(), jt.as_ptr(), et.as_ptr(), &mut out)
+                offset64(
+                    delta,
+                    miter,
+                    arc,
+                    pc as i32,
+                    rev as i32,
+                    tree as i32,
+                    flat.input(),
+                    path_group.as_ptr(),
+                    groups.len(),
+                    jt.as_ptr(),
+                    et.as_ptr(),
+                    &mut out,
+                )
             };
             take(code, out)
         }
 
         /// `ClipperOffset::Execute(delta, Paths64&)`, one `AddPaths` per group in order.
-        pub fn offset(delta: f64, groups: &[OffsetGroup<$P>], miter_limit: f64, arc_tolerance: f64, preserve_collinear: bool, reverse_solution: bool) -> Result<Vec<Vec<$P>>, String> {
-            run_offset(delta, groups, miter_limit, arc_tolerance, preserve_collinear, reverse_solution, false).map(|d| d.paths)
+        pub fn offset(
+            delta: f64,
+            groups: &[OffsetGroup<$P>],
+            miter_limit: f64,
+            arc_tolerance: f64,
+            preserve_collinear: bool,
+            reverse_solution: bool,
+        ) -> Result<Vec<Vec<$P>>, String> {
+            run_offset(
+                delta,
+                groups,
+                miter_limit,
+                arc_tolerance,
+                preserve_collinear,
+                reverse_solution,
+                false,
+            )
+            .map(|d| d.paths)
         }
 
         /// `ClipperOffset::Execute(delta, PolyTree64&)`.
-        pub fn offset_tree(delta: f64, groups: &[OffsetGroup<$P>], miter_limit: f64, arc_tolerance: f64, preserve_collinear: bool, reverse_solution: bool) -> Result<Tree<$P>, String> {
-            run_offset(delta, groups, miter_limit, arc_tolerance, preserve_collinear, reverse_solution, true).map(into_tree)
+        pub fn offset_tree(
+            delta: f64,
+            groups: &[OffsetGroup<$P>],
+            miter_limit: f64,
+            arc_tolerance: f64,
+            preserve_collinear: bool,
+            reverse_solution: bool,
+        ) -> Result<Tree<$P>, String> {
+            run_offset(
+                delta,
+                groups,
+                miter_limit,
+                arc_tolerance,
+                preserve_collinear,
+                reverse_solution,
+                true,
+            )
+            .map(into_tree)
         }
 
         fn run_rect(rect: (i64, i64, i64, i64), lines: bool, paths: &[Vec<$P>]) -> Vec<Vec<$P>> {
             let flat = Flat::new(paths);
             let mut out = ptr::null_mut();
             // SAFETY: inputs outlive the call; the shim copies them.
-            let code = unsafe { rectclip64(rect.0, rect.1, rect.2, rect.3, lines as i32, flat.input(), &mut out) };
+            let code = unsafe {
+                rectclip64(
+                    rect.0,
+                    rect.1,
+                    rect.2,
+                    rect.3,
+                    lines as i32,
+                    flat.input(),
+                    &mut out,
+                )
+            };
             take(code, out).expect("RectClip threw").paths
         }
 
@@ -284,8 +472,12 @@ macro_rules! reference_api {
             let mut result = 0;
             let mut out = ptr::null_mut();
             // SAFETY: inputs outlive the call; the shim copies them.
-            let code = unsafe { triangulate64(use_delaunay as i32, flat.input(), &mut result, &mut out) };
-            (result as u8, take(code, out).expect("Triangulate threw").paths)
+            let code =
+                unsafe { triangulate64(use_delaunay as i32, flat.input(), &mut result, &mut out) };
+            (
+                result as u8,
+                take(code, out).expect("Triangulate threw").paths,
+            )
         }
     };
 }
@@ -325,7 +517,16 @@ mod tests {
 
     #[test]
     fn union_of_overlapping_squares_has_area_7() {
-        let out = boolean(2, 1, false, false, &vec![square(0, 0, 2, 2)], &vec![], &vec![square(1, 1, 3, 3)]).unwrap();
+        let out = boolean(
+            2,
+            1,
+            false,
+            false,
+            &[square(0, 0, 2, 2)],
+            &[],
+            &[square(1, 1, 3, 3)],
+        )
+        .unwrap();
         assert_eq!(out.closed.len(), 1);
         assert_eq!(shoelace(&out.closed[0]).abs(), 7.0);
     }
@@ -334,28 +535,32 @@ mod tests {
     fn tree_marks_hole_under_outer() {
         let outer = square(0, 0, 10, 10);
         let hole = vec![(3, 3), (3, 7), (7, 7), (7, 3)];
-        let t = boolean_tree(2, 0, false, false, &vec![outer, hole], &vec![], &vec![]).unwrap();
+        let t = boolean_tree(2, 0, false, false, &[outer, hole], &[], &[]).unwrap();
         let shape: Vec<(i32, bool)> = t.nodes.iter().map(|n| (n.parent, n.is_hole)).collect();
         assert_eq!(shape, vec![(-1, false), (0, true)]);
     }
 
     #[test]
     fn offset_square_by_one_with_miter_has_area_16() {
-        let g = RefOffsetGroup { paths: vec![square(0, 0, 2, 2)], join_type: 3, end_type: 0 };
+        let g = RefOffsetGroup {
+            paths: vec![square(0, 0, 2, 2)],
+            join_type: 3,
+            end_type: 0,
+        };
         let out = offset(1.0, &[g], 2.0, 0.0, false, false).unwrap();
         assert_eq!(shoelace(&out[0]).abs(), 16.0);
     }
 
     #[test]
     fn rect_clip_square_to_unit_rect_has_area_1() {
-        let out = rect_clip((1, 1, 2, 2), &vec![square(0, 0, 10, 10)]);
+        let out = rect_clip((1, 1, 2, 2), &[square(0, 0, 10, 10)]);
         assert_eq!(out.len(), 1);
         assert_eq!(shoelace(&out[0]).abs(), 1.0);
     }
 
     #[test]
     fn triangulate_square_gives_two_triangles() {
-        let (code, tris) = triangulate(&vec![square(0, 0, 10, 10)], true);
+        let (code, tris) = triangulate(&[square(0, 0, 10, 10)], true);
         assert_eq!(code, 0);
         assert_eq!(tris.len(), 2);
     }
@@ -364,7 +569,7 @@ mod tests {
     fn z_union_sets_intersection_z_by_rule() {
         let a: z::RefPathZ = vec![(0, 0, 1), (10, 0, 1), (10, 10, 1), (0, 10, 1)];
         let b: z::RefPathZ = vec![(5, 5, 10), (15, 5, 10), (15, 15, 10), (5, 15, 10)];
-        let out = z::boolean(2, 1, false, false, &vec![a], &vec![], &vec![b]).unwrap();
+        let out = z::boolean(2, 1, false, false, &[a], &[], &[b]).unwrap();
         let path = &out.closed[0];
         let at = |x, y| path.iter().find(|p| p.0 == x && p.1 == y).map(|p| p.2);
         assert_eq!(at(10, 5), Some(22));

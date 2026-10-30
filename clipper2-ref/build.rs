@@ -10,8 +10,10 @@ const SOURCES: [&str; 4] = [
 // The only deliberate deviation from upstream: std::sort leaves the order of equal intersection
 // nodes to the standard library, so results differ between libc++ and libstdc++. clipper2-rs sorts
 // stably; the reference must too.
-const UNSTABLE_SORT: &str = "std::sort(intersect_nodes_.begin(), intersect_nodes_.end(), IntersectListSort);";
-const STABLE_SORT: &str = "std::stable_sort(intersect_nodes_.begin(), intersect_nodes_.end(), IntersectListSort);";
+const UNSTABLE_SORT: &str =
+    "std::sort(intersect_nodes_.begin(), intersect_nodes_.end(), IntersectListSort);";
+const STABLE_SORT: &str =
+    "std::stable_sort(intersect_nodes_.begin(), intersect_nodes_.end(), IntersectListSort);";
 
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -23,7 +25,10 @@ fn main() {
     for name in SOURCES {
         let mut text = fs::read_to_string(lib.join("src").join(name)).unwrap();
         if name == "clipper.engine.cpp" {
-            assert!(text.contains(UNSTABLE_SORT), "upstream intersect sort not found");
+            assert!(
+                text.contains(UNSTABLE_SORT),
+                "upstream intersect sort not found"
+            );
             text = text.replace(UNSTABLE_SORT, STABLE_SORT);
         }
         let path = out.join(name);
@@ -44,7 +49,9 @@ fn main() {
             .file(&shim)
             .warnings(false);
         if z {
-            build.define("USINGZ", None).define("Clipper2Lib", "Clipper2LibZ");
+            build
+                .define("USINGZ", None)
+                .define("Clipper2Lib", "Clipper2LibZ");
         }
         build.compile(name);
     }
