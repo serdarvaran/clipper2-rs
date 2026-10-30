@@ -10,6 +10,7 @@ mod minkowski;
 mod offset;
 mod polytree;
 mod rectclip;
+mod triangulation;
 mod utils;
 
 pub use crate::core::{
@@ -39,6 +40,7 @@ pub use rectclip::{
     RectClip64, RectClipLines64, rect_clip, rect_clip_d, rect_clip_lines, rect_clip_lines_d,
     rect_clip_lines_path, rect_clip_path,
 };
+pub use triangulation::{TriangulateError, triangulate, triangulate_d};
 #[cfg(feature = "usingz")]
 pub use utils::make_path_z;
 pub use utils::{

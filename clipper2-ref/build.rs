@@ -20,6 +20,18 @@ const STABLE_SORT: &str =
 const UNGUARDED_SPLIT: &str = "      if (!split->pts && split->splits &&\n        CheckSplitOwner(outrec, split->splits)) return true; //#942";
 const GUARDED_SPLIT: &str = "      if (!split->pts && split->splits && split->recursive_split != outrec) {\n        split->recursive_split = outrec;\n        if (CheckSplitOwner(outrec, split->splits)) return true; //#942\n      }";
 
+// Triangulation sorts edges and vertices with std::sort too; equal keys are common there.
+const TRI_SORTS: [(&str, &str); 2] = [
+    (
+        "std::sort(allEdges.begin(), allEdges.end(), EdgeListSort);",
+        "std::stable_sort(allEdges.begin(), allEdges.end(), EdgeListSort);",
+    ),
+    (
+        "std::sort(allVertices.begin(), allVertices.end(), VertexListSort);",
+        "std::stable_sort(allVertices.begin(), allVertices.end(), VertexListSort);",
+    ),
+];
+
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let lib = manifest.join("../upstream/Clipper2-2.0.1/CPP/Clipper2Lib");
@@ -40,6 +52,15 @@ fn main() {
                 "upstream CheckSplitOwner not found"
             );
             text = text.replace(UNGUARDED_SPLIT, GUARDED_SPLIT);
+        }
+        if name == "clipper.triangulation.cpp" {
+            for (unstable, stable) in TRI_SORTS {
+                assert!(
+                    text.contains(unstable),
+                    "upstream triangulation sort not found"
+                );
+                text = text.replace(unstable, stable);
+            }
         }
         let path = out.join(name);
         fs::write(&path, text).unwrap();

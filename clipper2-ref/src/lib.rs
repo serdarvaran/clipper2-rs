@@ -440,6 +440,14 @@ macro_rules! reference_api {
                 result: *mut i32,
                 out: *mut *mut RefOut,
             ) -> i32;
+            #[link_name = concat!($prefix, "triangulateD")]
+            fn triangulate_d_raw(
+                delaunay: i32,
+                dec_places: i32,
+                paths: InD,
+                result: *mut i32,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "view")]
             fn view(r: *const RefOut, v: *mut RefView);
             #[link_name = concat!($prefix, "free")]
@@ -945,6 +953,28 @@ macro_rules! reference_api {
         /// `RectClipLines(rect, paths)`.
         pub fn rect_clip_lines(rect: (i64, i64, i64, i64), paths: &[Vec<$P>]) -> Vec<Vec<$P>> {
             run_rect(rect, true, paths)
+        }
+
+        /// `Triangulate(PathsD, dec_places, solution, use_delaunay)`; 255 = C++ exception.
+        pub fn triangulate_d(
+            paths: &[Vec<$PD>],
+            dec_places: i32,
+            use_delaunay: bool,
+        ) -> (u8, Vec<Vec<$PD>>) {
+            let flat = FlatD::new(paths);
+            let mut result = 0;
+            let mut out = ptr::null_mut();
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                triangulate_d_raw(
+                    use_delaunay as i32,
+                    dec_places,
+                    flat.input(),
+                    &mut result,
+                    &mut out,
+                )
+            };
+            (result as u8, take_d(code, out).expect("shim failed").paths)
         }
 
         /// `Triangulate(paths, solution, use_delaunay)`: the `TriangulateResult` code and the triangles.

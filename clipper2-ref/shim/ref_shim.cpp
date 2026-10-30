@@ -346,10 +346,33 @@ int32_t FN(utilD)(int32_t op, double eps, int32_t flag, int32_t precision, doubl
   }
 }
 
+// A C++ exception from inside Triangulate (it throws "oops" on inconsistent state) is reported
+// as result 255.
 int32_t FN(triangulate64)(int32_t use_delaunay, In64 paths, int32_t* result, RefOut** out) {
   try {
     Paths64 solution;
-    *result = static_cast<int32_t>(Triangulate(to_paths(paths), solution, use_delaunay != 0));
+    try {
+      *result = static_cast<int32_t>(Triangulate(to_paths(paths), solution, use_delaunay != 0));
+    } catch (...) {
+      *result = 255;
+    }
+    RefOut* r = new RefOut();
+    push_paths(r, solution, 0);
+    *out = r;
+    return OK;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
+int32_t FN(triangulateD)(int32_t use_delaunay, int32_t dec_places, InD paths, int32_t* result, RefOut** out) {
+  try {
+    PathsD solution;
+    try {
+      *result = static_cast<int32_t>(Triangulate(to_paths(paths), dec_places, solution, use_delaunay != 0));
+    } catch (...) {
+      *result = 255;
+    }
     RefOut* r = new RefOut();
     push_paths(r, solution, 0);
     *out = r;
