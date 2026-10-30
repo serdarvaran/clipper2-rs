@@ -8,6 +8,7 @@
 #include "clipper2/clipper.rectclip.h"
 #include "clipper2/clipper.triangulation.h"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -398,5 +399,39 @@ void FN(view)(const RefOut* r, RefView* v) {
 }
 
 void FN(free)(RefOut* r) { delete r; }
+
+// Wall time in ns of `iters` runs of one operation on inputs converted once, so the benches
+// measure the library and not the FFI copies. 0 boolean (a clip type, b fill rule),
+// 1 InflatePaths (a join, b end, d delta), 2 RectClip (rect = clips[0][0], clips[0][1]),
+// 3 MinkowskiSum(clips[0], subjects[0], closed), 4 Triangulate (a delaunay), 5 SimplifyPaths (d).
+uint64_t FN(bench64)(int32_t op, int32_t a, int32_t b, double d, In64 subjects, In64 clips,
+                     uint64_t iters) {
+  const Paths64 s = to_paths(subjects), c = to_paths(clips);
+  size_t sink = 0;
+  const auto start = std::chrono::steady_clock::now();
+  for (uint64_t k = 0; k < iters; ++k) {
+    Paths64 r;
+    switch (op) {
+      case 0: {
+        Clipper64 cl;
+        cl.AddSubject(s);
+        cl.AddClip(c);
+        cl.Execute(static_cast<ClipType>(a), static_cast<FillRule>(b), r);
+        break;
+      }
+      case 1: r = InflatePaths(s, d, static_cast<JoinType>(a), static_cast<EndType>(b)); break;
+      case 2: r = RectClip(Rect64(c[0][0].x, c[0][0].y, c[0][1].x, c[0][1].y), s); break;
+      case 3: r = MinkowskiSum(c[0], s[0], true); break;
+      case 4: Triangulate(s, r, a != 0); break;
+      case 5: r = SimplifyPaths(s, d, true); break;
+    }
+    sink += r.size();
+  }
+  const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::steady_clock::now() - start).count();
+  static volatile size_t keep;
+  keep = sink;
+  return static_cast<uint64_t>(ns);
+}
 
 }  // extern "C"

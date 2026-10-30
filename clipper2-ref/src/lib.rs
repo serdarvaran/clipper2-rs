@@ -433,6 +433,16 @@ macro_rules! reference_api {
                 ret: *mut i32,
                 out: *mut *mut RefOut,
             ) -> i32;
+            #[link_name = concat!($prefix, "bench64")]
+            fn bench64(
+                op: i32,
+                a: i32,
+                b: i32,
+                d: f64,
+                subjects: In64,
+                clips: In64,
+                iters: u64,
+            ) -> u64;
             #[link_name = concat!($prefix, "triangulate64")]
             fn triangulate64(
                 delaunay: i32,
@@ -953,6 +963,23 @@ macro_rules! reference_api {
         /// `RectClipLines(rect, paths)`.
         pub fn rect_clip_lines(rect: (i64, i64, i64, i64), paths: &[Vec<$P>]) -> Vec<Vec<$P>> {
             run_rect(rect, true, paths)
+        }
+
+        /// Wall time of `iters` runs of one operation on inputs converted once (see `bench64`
+        /// in the shim for the operation codes).
+        pub fn bench(
+            op: i32,
+            a: i32,
+            b: i32,
+            d: f64,
+            subjects: &[Vec<$P>],
+            clips: &[Vec<$P>],
+            iters: u64,
+        ) -> std::time::Duration {
+            let (s, c) = (Flat::new(subjects), Flat::new(clips));
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let ns = unsafe { bench64(op, a, b, d, s.input(), c.input(), iters) };
+            std::time::Duration::from_nanos(ns)
         }
 
         /// `Triangulate(PathsD, dec_places, solution, use_delaunay)`; 255 = C++ exception.
