@@ -65,6 +65,10 @@ pub type RefSolution = Solution<(i64, i64)>;
 pub type RefNode = Node<(i64, i64)>;
 pub type RefTree = Tree<(i64, i64)>;
 pub type RefOffsetGroup = OffsetGroup<(i64, i64)>;
+pub type RefPathD = Vec<(f64, f64)>;
+pub type RefPathsD = Vec<RefPathD>;
+pub type RefSolutionD = Solution<(f64, f64)>;
+pub type RefTreeD = Tree<(f64, f64)>;
 
 const FLAG_OPEN: u8 = 1;
 const FLAG_HOLE: u8 = 2;
@@ -72,6 +76,14 @@ const FLAG_HOLE: u8 = 2;
 #[repr(C)]
 struct In64 {
     xy: *const i64,
+    z: *const i64,
+    lens: *const u32,
+    count: usize,
+}
+
+#[repr(C)]
+struct InD {
+    xy: *const f64,
     z: *const i64,
     lens: *const u32,
     count: usize,
@@ -127,6 +139,89 @@ impl Flat {
             lens: self.lens.as_ptr(),
             count: self.lens.len(),
         }
+    }
+}
+
+struct FlatD {
+    xy: Vec<f64>,
+    z: Vec<i64>,
+    lens: Vec<u32>,
+}
+
+impl FlatD {
+    fn new<P: RefPointD>(paths: &[Vec<P>]) -> Self {
+        let mut flat = FlatD {
+            xy: Vec::new(),
+            z: Vec::new(),
+            lens: Vec::new(),
+        };
+        for path in paths {
+            flat.lens.push(path.len() as u32);
+            for p in path {
+                let (x, y, z) = p.xyz();
+                flat.xy.extend([x, y]);
+                flat.z.push(z);
+            }
+        }
+        flat
+    }
+
+    fn input(&self) -> InD {
+        InD {
+            xy: self.xy.as_ptr(),
+            z: self.z.as_ptr(),
+            lens: self.lens.as_ptr(),
+            count: self.lens.len(),
+        }
+    }
+}
+
+/// A 2D (`(x, y)`) or 3D (`(x, y, z)`) floating-point point.
+pub trait RefPointD: Copy {
+    fn xyz(self) -> (f64, f64, i64);
+    fn from_xyz(x: f64, y: f64, z: i64) -> Self;
+}
+
+impl RefPointD for (f64, f64) {
+    fn xyz(self) -> (f64, f64, i64) {
+        (self.0, self.1, 0)
+    }
+    fn from_xyz(x: f64, y: f64, _z: i64) -> Self {
+        (x, y)
+    }
+}
+
+impl RefPointD for (f64, f64, i64) {
+    fn xyz(self) -> (f64, f64, i64) {
+        self
+    }
+    fn from_xyz(x: f64, y: f64, z: i64) -> Self {
+        (x, y, z)
+    }
+}
+
+fn decode_d<P: RefPointD>(view: &RefView) -> Decoded<P> {
+    let xy = slice(view.xyd, view.xyd_len);
+    let z = slice(view.z, view.z_len);
+    let lens = slice(view.lens, view.path_count);
+    let mut paths = Vec::with_capacity(lens.len());
+    let mut k = 0;
+    for &len in lens {
+        let mut path = Vec::with_capacity(len as usize);
+        for _ in 0..len {
+            path.push(P::from_xyz(
+                xy[2 * k],
+                xy[2 * k + 1],
+                z.get(k).copied().unwrap_or(0),
+            ));
+            k += 1;
+        }
+        paths.push(path);
+    }
+    Decoded {
+        paths,
+        parents: slice(view.parents, view.path_count).to_vec(),
+        flags: slice(view.flags, view.path_count).to_vec(),
     }
 }
 
@@ -212,7 +307,7 @@ fn into_tree<P>(d: Decoded<P>) -> Tree<P> {
 }
 
 macro_rules! reference_api {
-    ($prefix:literal, $P:ty) => {
+    ($prefix:literal, $P:ty, $PD:ty) => {
         use super::*;
 
         unsafe extern "C" {
@@ -226,6 +321,19 @@ macro_rules! reference_api {
                 s: In64,
                 so: In64,
                 c: In64,
+                out: *mut *mut RefOut,
+            ) -> i32;
+            #[link_name = concat!($prefix, "booleanD")]
+            fn boolean_d_raw(
+                ct: u8,
+                fr: u8,
+                precision: i32,
+                pc: i32,
+                rev: i32,
+                tree: i32,
+                s: InD,
+                so: InD,
+                c: InD,
                 out: *mut *mut RefOut,
             ) -> i32;
             #[link_name = concat!($prefix, "offset64")]
@@ -280,6 +388,103 @@ macro_rules! reference_api {
                 d
             };
             status(code).map(|_| decoded)
+        }
+
+        fn take_d(code: i32, out: *mut RefOut) -> Result<Decoded<$PD>, String> {
+            if out.is_null() {
+                status(code)?;
+                return Err("no result".into());
+            }
+            let mut v = std::mem::MaybeUninit::<RefView>::uninit();
+            // SAFETY: `out` is a live RefOut from the shim, released right after decoding.
+            let decoded = unsafe {
+                view(out, v.as_mut_ptr());
+                let d = decode_d::<$PD>(&v.assume_init());
+                free(out);
+                d
+            };
+            status(code).map(|_| decoded)
+        }
+
+        fn run_boolean_d(
+            ct: u8,
+            fr: u8,
+            precision: i32,
+            pc: bool,
+            rev: bool,
+            tree: bool,
+            s: &[Vec<$PD>],
+            so: &[Vec<$PD>],
+            c: &[Vec<$PD>],
+        ) -> Result<Decoded<$PD>, String> {
+            let (s, so, c) = (FlatD::new(s), FlatD::new(so), FlatD::new(c));
+            let mut out = ptr::null_mut();
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                boolean_d_raw(
+                    ct,
+                    fr,
+                    precision,
+                    pc as i32,
+                    rev as i32,
+                    tree as i32,
+                    s.input(),
+                    so.input(),
+                    c.input(),
+                    &mut out,
+                )
+            };
+            take_d(code, out)
+        }
+
+        /// `ClipperD(precision)::Execute` into closed and open paths.
+        pub fn boolean_d(
+            ct: u8,
+            fr: u8,
+            precision: i32,
+            preserve_collinear: bool,
+            reverse_solution: bool,
+            subjects: &[Vec<$PD>],
+            open_subjects: &[Vec<$PD>],
+            clips: &[Vec<$PD>],
+        ) -> Result<Solution<$PD>, String> {
+            run_boolean_d(
+                ct,
+                fr,
+                precision,
+                preserve_collinear,
+                reverse_solution,
+                false,
+                subjects,
+                open_subjects,
+                clips,
+            )
+            .map(split_open)
+        }
+
+        /// `ClipperD(precision)::Execute` into a `PolyTreeD`.
+        pub fn boolean_tree_d(
+            ct: u8,
+            fr: u8,
+            precision: i32,
+            preserve_collinear: bool,
+            reverse_solution: bool,
+            subjects: &[Vec<$PD>],
+            open_subjects: &[Vec<$PD>],
+            clips: &[Vec<$PD>],
+        ) -> Result<Tree<$PD>, String> {
+            run_boolean_d(
+                ct,
+                fr,
+                precision,
+                preserve_collinear,
+                reverse_solution,
+                true,
+                subjects,
+                open_subjects,
+                clips,
+            )
+            .map(into_tree)
         }
 
         fn run_boolean(
@@ -483,17 +688,18 @@ macro_rules! reference_api {
 }
 
 mod plain {
-    reference_api!("ref_", (i64, i64));
+    reference_api!("ref_", (i64, i64), (f64, f64));
 }
 
 pub use plain::*;
 
 /// The `USINGZ` build of the reference.
 pub mod z {
-    reference_api!("ref_z_", (i64, i64, i64));
+    reference_api!("ref_z_", (i64, i64, i64), (f64, f64, i64));
 
     pub type RefPathZ = Vec<(i64, i64, i64)>;
     pub type RefPathsZ = Vec<RefPathZ>;
+    pub type RefPathDZ = Vec<(f64, f64, i64)>;
 }
 
 #[cfg(test)]

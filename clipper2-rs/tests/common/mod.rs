@@ -365,3 +365,60 @@ pub fn ref_tree_nodes(t: &clipper2_ref::RefTree) -> Vec<(RefPath, i32, bool)> {
         .map(|n| (n.path.clone(), n.parent, n.is_hole))
         .collect()
 }
+
+pub type RefPathD = clipper2_ref::RefPathD;
+
+pub fn to_ref_d(paths: &[clipper2_rs::PathD]) -> Vec<RefPathD> {
+    paths
+        .iter()
+        .map(|p| p.iter().map(|pt| (pt.x, pt.y)).collect())
+        .collect()
+}
+
+/// Bit-exact comparison of floating-point paths.
+pub fn assert_paths_d_eq(
+    case: &str,
+    input: &str,
+    ours: &[clipper2_rs::PathD],
+    reference: &[RefPathD],
+) {
+    assert_same(case, input, &bits_d(&to_ref_d(ours)), &bits_d(reference));
+}
+
+pub fn flatten_tree_d(tree: &clipper2_rs::PolyTreeD) -> Vec<(Vec<(u64, u64)>, i32, bool)> {
+    let order = tree.dfs();
+    let mut pos = vec![0i32; tree.len()];
+    for (k, &id) in order.iter().enumerate() {
+        pos[id] = k as i32;
+    }
+    order
+        .iter()
+        .map(|&id| {
+            let n = tree.node(id);
+            (
+                n.polygon
+                    .iter()
+                    .map(|p| (p.x.to_bits(), p.y.to_bits()))
+                    .collect(),
+                n.parent.map_or(-1, |p| pos[p]),
+                tree.is_hole(id),
+            )
+        })
+        .collect()
+}
+
+pub fn ref_tree_nodes_d(t: &clipper2_ref::RefTreeD) -> Vec<(Vec<(u64, u64)>, i32, bool)> {
+    t.nodes
+        .iter()
+        .map(|n| {
+            (
+                n.path
+                    .iter()
+                    .map(|&(x, y)| (x.to_bits(), y.to_bits()))
+                    .collect(),
+                n.parent,
+                n.is_hole,
+            )
+        })
+        .collect()
+}

@@ -113,7 +113,6 @@ impl<T: Coord> PolyTree<T> {
     }
 
     /// Converts every polygon with `f`, keeping the structure.
-    #[allow(dead_code)] // used by ClipperD (task 6)
     pub(crate) fn map<U: Coord>(self, mut f: impl FnMut(Path<T>) -> Path<U>) -> PolyTree<U> {
         PolyTree {
             nodes: self

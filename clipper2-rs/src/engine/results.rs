@@ -2,12 +2,12 @@
 
 use super::ClipperBase;
 use super::types::*;
-use crate::core::{Path64, Paths64, get_bounds};
+use crate::core::{Path64, PathD, Paths64, PathsD, get_bounds};
 use crate::polytree::PolyTree64;
 
 impl ClipperBase {
-    /// `BuildPath64`: `None` when the ring is degenerate.
-    pub(crate) fn build_path64(&self, op: Idx, reverse: bool, is_open: bool) -> Option<Path64> {
+    /// The distinct points of a ring in output order, and the op the walk ended on.
+    fn walk_ring(&self, op: Idx, reverse: bool, is_open: bool) -> Option<(Path64, Idx)> {
         if op == NONE
             || self.op(op).next == op
             || (!is_open && self.op(op).next == self.op(op).prev)
@@ -37,11 +37,36 @@ impl ClipperBase {
                 self.op(op2).next
             };
         }
-        if !is_open && path.len() == 3 && self.is_very_small_triangle(op2) {
+        Some((path, op2))
+    }
+
+    /// `BuildPath64`: `None` when the ring is degenerate.
+    pub(crate) fn build_path64(&self, op: Idx, reverse: bool, is_open: bool) -> Option<Path64> {
+        let (path, end) = self.walk_ring(op, reverse, is_open)?;
+        if !is_open && path.len() == 3 && self.is_very_small_triangle(end) {
             None
         } else {
             Some(path)
         }
+    }
+
+    /// `BuildPathD`. Unlike `BuildPath64` it drops very small triangles of open paths too.
+    pub(crate) fn build_path_d(
+        &self,
+        op: Idx,
+        reverse: bool,
+        is_open: bool,
+        inv_scale: f64,
+    ) -> Option<PathD> {
+        let (path, end) = self.walk_ring(op, reverse, is_open)?;
+        if path.len() == 3 && self.is_very_small_triangle(end) {
+            return None;
+        }
+        Some(
+            path.iter()
+                .map(|p| p.with_xy(p.x as f64 * inv_scale, p.y as f64 * inv_scale))
+                .collect(),
+        )
     }
 
     pub(crate) fn check_bounds(&mut self, outrec: Idx) -> bool {
@@ -103,7 +128,7 @@ impl ClipperBase {
         false
     }
 
-    fn recursive_check_owners(&mut self, outrec: Idx, tree: &mut PolyTree64) {
+    pub(crate) fn recursive_check_owners(&mut self, outrec: Idx, tree: &mut PolyTree64) {
         if self.or(outrec).polypath != NONE || self.or(outrec).bounds.is_empty() {
             return;
         }
@@ -177,6 +202,66 @@ impl ClipperBase {
             }
             if self.or(i).is_open {
                 if let Some(path) = self.build_path64(self.or(i).pts, self.reverse_solution, true) {
+                    open.push(path);
+                }
+                continue;
+            }
+            if self.check_bounds(i) {
+                self.recursive_check_owners(i, tree);
+            }
+        }
+    }
+}
+
+impl ClipperBase {
+    /// `BuildPathsD`.
+    pub(crate) fn build_paths_d(&mut self, closed: &mut PathsD, open: &mut PathsD, inv_scale: f64) {
+        closed.clear();
+        open.clear();
+        let mut i: Idx = 0;
+        while (i as usize) < self.outrecs.len() {
+            i += 1;
+            let i = i - 1;
+            if self.or(i).pts == NONE {
+                continue;
+            }
+            if self.or(i).is_open {
+                if let Some(path) =
+                    self.build_path_d(self.or(i).pts, self.reverse_solution, true, inv_scale)
+                {
+                    open.push(path);
+                }
+            } else {
+                self.clean_collinear(i);
+                if let Some(path) =
+                    self.build_path_d(self.or(i).pts, self.reverse_solution, false, inv_scale)
+                {
+                    closed.push(path);
+                }
+            }
+        }
+    }
+
+    /// The open-path part of `BuildTreeD` (closed paths go through [`Self::build_tree`]).
+    pub(crate) fn build_tree_d(
+        &mut self,
+        tree: &mut PolyTree64,
+        open: &mut PathsD,
+        inv_scale: f64,
+    ) {
+        tree.clear();
+        open.clear();
+        let mut i: Idx = 0;
+        while (i as usize) < self.outrecs.len() {
+            i += 1;
+            let i = i - 1;
+            if self.or(i).pts == NONE {
+                continue;
+            }
+            if self.or(i).is_open {
+                if let Some(path) =
+                    self.build_path_d(self.or(i).pts, self.reverse_solution, true, inv_scale)
+                {
                     open.push(path);
                 }
                 continue;

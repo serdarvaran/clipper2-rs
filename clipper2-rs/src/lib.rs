@@ -1,6 +1,7 @@
 //! Pure Rust port of [Clipper2](https://github.com/AngusJohnson/Clipper2) 2.0.1 by Angus Johnson.
 #![forbid(unsafe_code)]
 
+mod clipper_d;
 #[allow(dead_code)] // TEMP: internal helpers are consumed by later tasks; removed in task 16
 mod core;
 mod engine;
@@ -14,6 +15,9 @@ pub use crate::core::{
     strip_duplicates, strip_duplicates_paths, strip_near_equal, strip_near_equal_paths,
     transform_path, transform_paths,
 };
+#[cfg(feature = "usingz")]
+pub use clipper_d::ZCallbackD;
+pub use clipper_d::{ClipperD, SolutionD};
 #[cfg(feature = "usingz")]
 pub use engine::ZCallback64;
 pub use engine::{Clipper64, PathType, ReuseableDataContainer64, Solution};

@@ -155,6 +155,39 @@ int32_t FN(boolean64)(uint8_t ct, uint8_t fr, int32_t preserve_collinear, int32_
   }
 }
 
+int32_t FN(booleanD)(uint8_t ct, uint8_t fr, int32_t precision, int32_t preserve_collinear,
+                     int32_t reverse_solution, int32_t tree, InD subjects, InD open_subjects, InD clips,
+                     RefOut** out) {
+  try {
+    ClipperD c(precision);
+    c.PreserveCollinear(preserve_collinear != 0);
+    c.ReverseSolution(reverse_solution != 0);
+#ifdef USINGZ
+    c.SetZCallback(z_ruleD);
+#endif
+    if (subjects.count) c.AddSubject(to_paths(subjects));
+    if (open_subjects.count) c.AddOpenSubject(to_paths(open_subjects));
+    if (clips.count) c.AddClip(to_paths(clips));
+    RefOut* r = new RefOut();
+    PathsD open;
+    bool ok;
+    if (tree) {
+      PolyTreeD pt;
+      ok = c.Execute(static_cast<ClipType>(ct), static_cast<FillRule>(fr), pt, open);
+      push_tree(r, pt);
+    } else {
+      PathsD closed;
+      ok = c.Execute(static_cast<ClipType>(ct), static_cast<FillRule>(fr), closed, open);
+      push_paths(r, closed, 0);
+    }
+    push_paths(r, open, FLAG_OPEN);
+    *out = r;
+    return ok ? OK : EXECUTE_FAILED;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
 int32_t FN(offset64)(double delta, double miter_limit, double arc_tolerance, int32_t preserve_collinear,
                      int32_t reverse_solution, int32_t tree, In64 paths, const uint32_t* path_group,
                      size_t group_count, const uint8_t* join_types, const uint8_t* end_types,

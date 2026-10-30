@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 mod common;
 
 use clipper2_rs::{ClipType, Clipper64, FillRule, PathType, Paths64, ReuseableDataContainer64};
