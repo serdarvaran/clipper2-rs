@@ -387,6 +387,23 @@ macro_rules! reference_api {
                 paths: InD,
                 out: *mut *mut RefOut,
             ) -> i32;
+            #[link_name = concat!($prefix, "minkowski64")]
+            fn minkowski64_raw(
+                pattern: In64,
+                path: In64,
+                closed: i32,
+                diff: i32,
+                out: *mut *mut RefOut,
+            ) -> i32;
+            #[link_name = concat!($prefix, "minkowskiD")]
+            fn minkowski_d_raw(
+                pattern: InD,
+                path: InD,
+                closed: i32,
+                dp: i32,
+                diff: i32,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "triangulate64")]
             fn triangulate64(
                 delaunay: i32,
@@ -762,6 +779,58 @@ macro_rules! reference_api {
                     lines as i32,
                     precision,
                     flat.input(),
+                    &mut out,
+                )
+            };
+            take_d(code, out).map(|d| d.paths)
+        }
+
+        /// `MinkowskiSum` (or `MinkowskiDiff` when `diff`).
+        pub fn minkowski(
+            pattern: &Vec<$P>,
+            path: &Vec<$P>,
+            is_closed: bool,
+            diff: bool,
+        ) -> Result<Vec<Vec<$P>>, String> {
+            let (pa, pb) = (
+                Flat::new(std::slice::from_ref(pattern)),
+                Flat::new(std::slice::from_ref(path)),
+            );
+            let mut out = ptr::null_mut();
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                minkowski64_raw(
+                    pa.input(),
+                    pb.input(),
+                    is_closed as i32,
+                    diff as i32,
+                    &mut out,
+                )
+            };
+            take(code, out).map(|d| d.paths)
+        }
+
+        /// `MinkowskiSum` / `MinkowskiDiff` on floating-point paths.
+        pub fn minkowski_d(
+            pattern: &Vec<$PD>,
+            path: &Vec<$PD>,
+            is_closed: bool,
+            decimal_places: i32,
+            diff: bool,
+        ) -> Result<Vec<Vec<$PD>>, String> {
+            let (pa, pb) = (
+                FlatD::new(std::slice::from_ref(pattern)),
+                FlatD::new(std::slice::from_ref(path)),
+            );
+            let mut out = ptr::null_mut();
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                minkowski_d_raw(
+                    pa.input(),
+                    pb.input(),
+                    is_closed as i32,
+                    decimal_places,
+                    diff as i32,
                     &mut out,
                 )
             };

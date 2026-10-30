@@ -5,6 +5,7 @@ mod clipper_d;
 #[allow(dead_code)] // TEMP: internal helpers are consumed by later tasks; removed in task 16
 mod core;
 mod engine;
+mod minkowski;
 mod offset;
 mod polytree;
 mod rectclip;
@@ -24,6 +25,7 @@ pub use clipper_d::{ClipperD, SolutionD};
 #[cfg(feature = "usingz")]
 pub use engine::ZCallback64;
 pub use engine::{Clipper64, PathType, ReuseableDataContainer64, Solution};
+pub use minkowski::{minkowski_diff, minkowski_diff_d, minkowski_sum, minkowski_sum_d};
 pub use offset::{
     ClipperOffset, DeltaCallback64, EndType, JoinType, inflate_paths, inflate_paths_d,
 };

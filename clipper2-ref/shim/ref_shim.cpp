@@ -269,6 +269,32 @@ int32_t FN(rectclipD)(double left, double top, double right, double bottom, int3
   }
 }
 
+int32_t FN(minkowski64)(In64 pattern, In64 path, int32_t is_closed, int32_t diff, RefOut** out) {
+  try {
+    const Path64 pat = to_paths(pattern).at(0), pth = to_paths(path).at(0);
+    RefOut* r = new RefOut();
+    push_paths(r, diff ? MinkowskiDiff(pat, pth, is_closed != 0) : MinkowskiSum(pat, pth, is_closed != 0), 0);
+    *out = r;
+    return OK;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
+int32_t FN(minkowskiD)(InD pattern, InD path, int32_t is_closed, int32_t decimal_places, int32_t diff,
+                       RefOut** out) {
+  try {
+    const PathD pat = to_paths(pattern).at(0), pth = to_paths(path).at(0);
+    RefOut* r = new RefOut();
+    push_paths(r, diff ? MinkowskiDiff(pat, pth, is_closed != 0, decimal_places)
+                       : MinkowskiSum(pat, pth, is_closed != 0, decimal_places), 0);
+    *out = r;
+    return OK;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
 int32_t FN(triangulate64)(int32_t use_delaunay, In64 paths, int32_t* result, RefOut** out) {
   try {
     Paths64 solution;
