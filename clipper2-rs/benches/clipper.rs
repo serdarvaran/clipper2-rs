@@ -141,7 +141,7 @@ fn others(c: &mut Criterion) {
         b.iter_custom(&run)
     });
 
-    let path: Path64 = blobs(&mut Rng::new(4), 1, 2_000, 1_000).remove(0);
+    let path: Path64 = ellipse(Point64::new(0, 0), 5_000.0, 3_500.0, 2_000);
     let pattern = ellipse(Point64::new(0, 0), 10.0, 10.0, 16);
     group.bench_function(BenchmarkId::new("rust", "minkowski_sum/2k"), |b| {
         b.iter(|| black_box(minkowski_sum(&pattern, &path, true).unwrap()))

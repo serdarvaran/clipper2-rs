@@ -144,11 +144,14 @@ pub fn simplify_path<T: Coord>(path: &[Point<T>], epsilon: f64, is_closed_path: 
             dist_sqr[prior] = perpendic_dist_from_line_sqrd(path[prior], path[prior2], path[curr]);
         }
     }
-    path.iter()
-        .zip(&flags)
-        .filter(|(_, f)| !**f)
-        .map(|(p, _)| *p)
-        .collect()
+    let mut result = Vec::with_capacity(len);
+    result.extend(
+        path.iter()
+            .zip(&flags)
+            .filter(|(_, f)| !**f)
+            .map(|(p, _)| *p),
+    );
+    result
 }
 
 /// [`simplify_path`] for several paths.
