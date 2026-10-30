@@ -4,7 +4,15 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Pure Rust port of the Clipper2 polygon clipping and offsetting library"
+description = "Pure Rust port of Clipper2: polygon clipping, offsetting and triangulation, tested bit-for-bit against the C++ library"
+repository = "https://github.com/coderssociety/clipper2-rs"
+readme = "../README.md"
+keywords = ["clipper", "polygon", "boolean", "offset", "geometry"]
+categories = ["algorithms", "graphics", "mathematics"]
+include = ["src/**/*.rs", "examples/*.rs", "LICENSE"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 usingz = []

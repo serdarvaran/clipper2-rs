@@ -1,3 +1,4 @@
 target/
 fixtures/quote3d-corpus/
 .superpowers/
+.DS_Store
