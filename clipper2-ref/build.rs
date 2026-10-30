@@ -82,6 +82,12 @@ fn main() {
             .files(&sources)
             .file(&shim)
             .warnings(false);
+        // Upstream's DoError throws only if __cpp_exceptions or __EXCEPTIONS is defined, which MSVC
+        // does not do; it then carries on past internal errors in the triangulation
+        // (vector::erase(end()), heap corruption). Make it throw there too, as with GCC and Clang.
+        if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+            build.define("__EXCEPTIONS", "1");
+        }
         if z {
             build
                 .define("USINGZ", None)

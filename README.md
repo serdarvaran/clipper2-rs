@@ -115,6 +115,9 @@ Results are identical to upstream except in these cases:
    - Empty paths given to the offsetter are skipped. Upstream reads out of bounds.
    - If the intersection list cannot be processed in order, `execute` returns
      `ClipperError::ExecuteFailed`. Upstream reads past the end of the list.
+   - An internal error in the triangulation is `TriangulateError::Fail` on every platform.
+     Upstream throws there only when `__cpp_exceptions` or `__EXCEPTIONS` is defined; built with
+     MSVC it carries on into undefined behaviour.
 
 Triangulation is marked as beta upstream.
 
