@@ -255,6 +255,20 @@ int32_t FN(rectclip64)(int64_t left, int64_t top, int64_t right, int64_t bottom,
   }
 }
 
+int32_t FN(rectclipD)(double left, double top, double right, double bottom, int32_t lines,
+                      int32_t precision, InD paths, RefOut** out) {
+  try {
+    const RectD rect(left, top, right, bottom);
+    RefOut* r = new RefOut();
+    push_paths(r, lines ? RectClipLines(rect, to_paths(paths), precision)
+                        : RectClip(rect, to_paths(paths), precision), 0);
+    *out = r;
+    return OK;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
 int32_t FN(triangulate64)(int32_t use_delaunay, In64 paths, int32_t* result, RefOut** out) {
   try {
     Paths64 solution;

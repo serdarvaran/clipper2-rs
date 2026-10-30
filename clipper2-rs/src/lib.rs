@@ -7,6 +7,7 @@ mod core;
 mod engine;
 mod offset;
 mod polytree;
+mod rectclip;
 mod utils;
 
 pub use crate::core::{
@@ -27,4 +28,8 @@ pub use offset::{
     ClipperOffset, DeltaCallback64, EndType, JoinType, inflate_paths, inflate_paths_d,
 };
 pub use polytree::{PolyNode, PolyNode64, PolyNodeD, PolyTree, PolyTree64, PolyTreeD};
+pub use rectclip::{
+    RectClip64, RectClipLines64, rect_clip, rect_clip_d, rect_clip_lines, rect_clip_lines_d,
+    rect_clip_lines_path, rect_clip_path,
+};
 pub use utils::{ellipse, ellipse_rect};

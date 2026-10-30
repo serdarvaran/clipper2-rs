@@ -376,6 +376,17 @@ macro_rules! reference_api {
                 paths: In64,
                 out: *mut *mut RefOut,
             ) -> i32;
+            #[link_name = concat!($prefix, "rectclipD")]
+            fn rectclip_d_raw(
+                l: f64,
+                t: f64,
+                r: f64,
+                b: f64,
+                lines: i32,
+                precision: i32,
+                paths: InD,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "triangulate64")]
             fn triangulate64(
                 delaunay: i32,
@@ -730,6 +741,31 @@ macro_rules! reference_api {
                 )
             };
             take(code, out).expect("RectClip threw").paths
+        }
+
+        /// `RectClip(RectD, PathsD, precision)` (`lines` selects `RectClipLines`).
+        pub fn rect_clip_d(
+            rect: (f64, f64, f64, f64),
+            paths: &[Vec<$PD>],
+            precision: i32,
+            lines: bool,
+        ) -> Result<Vec<Vec<$PD>>, String> {
+            let flat = FlatD::new(paths);
+            let mut out = ptr::null_mut();
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                rectclip_d_raw(
+                    rect.0,
+                    rect.1,
+                    rect.2,
+                    rect.3,
+                    lines as i32,
+                    precision,
+                    flat.input(),
+                    &mut out,
+                )
+            };
+            take_d(code, out).map(|d| d.paths)
         }
 
         /// `RectClip(rect, paths)` with `rect = (left, top, right, bottom)`.
