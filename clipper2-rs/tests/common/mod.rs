@@ -337,3 +337,31 @@ pub fn read_upstream_tests(file: &Path) -> Vec<UpstreamCase> {
     }
     cases
 }
+
+/// `(path, parent, is_hole)` per node in DFS pre-order, parent as an index into this list
+/// (-1 at the top level) — the reference's `RefTree` layout.
+pub fn flatten_tree(tree: &clipper2_rs::PolyTree64) -> Vec<(RefPath, i32, bool)> {
+    let order = tree.dfs();
+    let mut pos = vec![0i32; tree.len()];
+    for (k, &id) in order.iter().enumerate() {
+        pos[id] = k as i32;
+    }
+    order
+        .iter()
+        .map(|&id| {
+            let n = tree.node(id);
+            (
+                n.polygon.iter().map(|p| (p.x, p.y)).collect(),
+                n.parent.map_or(-1, |p| pos[p]),
+                tree.is_hole(id),
+            )
+        })
+        .collect()
+}
+
+pub fn ref_tree_nodes(t: &clipper2_ref::RefTree) -> Vec<(RefPath, i32, bool)> {
+    t.nodes
+        .iter()
+        .map(|n| (n.path.clone(), n.parent, n.is_hole))
+        .collect()
+}
