@@ -295,6 +295,57 @@ int32_t FN(minkowskiD)(InD pattern, InD path, int32_t is_closed, int32_t decimal
   }
 }
 
+// Utilities from clipper.h, selected by `op` (see clipper2-ref/src/lib.rs).
+int32_t FN(util64)(int32_t op, double eps, int32_t flag, int64_t x, int64_t y, double rx, double ry,
+                   int32_t steps, In64 paths, int32_t* ret, RefOut** out) {
+  try {
+    const Paths64 pp = to_paths(paths);
+    RefOut* r = new RefOut();
+    switch (op) {
+      case 0: push_paths(r, SimplifyPaths(pp, eps, flag != 0), 0); break;
+      case 1: push_paths(r, RamerDouglasPeucker(pp, eps), 0); break;
+      case 2: push_paths(r, Paths64{TrimCollinear(pp.at(0), flag != 0)}, 0); break;
+      case 3: *ret = static_cast<int32_t>(PointInPolygon(Point64(x, y), pp.at(0))); break;
+      case 4: push_paths(r, Paths64{Ellipse(Point64(x, y), rx, ry, static_cast<size_t>(steps))}, 0); break;
+      case 5: {
+        Clipper64 c;
+        c.AddSubject(pp);
+        PolyTree64 tree;
+        c.Execute(ClipType::Union, static_cast<FillRule>(flag), tree);
+        *ret = CheckPolytreeFullyContainsChildren(tree) ? 1 : 0;
+        push_paths(r, PolyTreeToPaths64(tree), 0);
+        break;
+      }
+      case 6: push_paths(r, TranslatePaths(pp, x, y), 0); break;
+      default: delete r; return EXCEPTION;
+    }
+    *out = r;
+    return OK;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
+int32_t FN(utilD)(int32_t op, double eps, int32_t flag, int32_t precision, double x, double y, double rx,
+                  double ry, int32_t steps, InD paths, int32_t* ret, RefOut** out) {
+  try {
+    const PathsD pp = to_paths(paths);
+    RefOut* r = new RefOut();
+    switch (op) {
+      case 0: push_paths(r, SimplifyPaths(pp, eps, flag != 0), 0); break;
+      case 1: push_paths(r, RamerDouglasPeucker(pp, eps), 0); break;
+      case 2: push_paths(r, PathsD{TrimCollinear(pp.at(0), precision, flag != 0)}, 0); break;
+      case 3: *ret = static_cast<int32_t>(PointInPolygon(PointD(x, y), pp.at(0))); break;
+      case 4: push_paths(r, PathsD{Ellipse(PointD(x, y), rx, ry, static_cast<size_t>(steps))}, 0); break;
+      default: delete r; return EXCEPTION;
+    }
+    *out = r;
+    return OK;
+  } catch (...) {
+    return EXCEPTION;
+  }
+}
+
 int32_t FN(triangulate64)(int32_t use_delaunay, In64 paths, int32_t* result, RefOut** out) {
   try {
     Paths64 solution;

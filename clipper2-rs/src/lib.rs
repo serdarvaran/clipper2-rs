@@ -1,6 +1,7 @@
 //! Pure Rust port of [Clipper2](https://github.com/AngusJohnson/Clipper2) 2.0.1 by Angus Johnson.
 #![forbid(unsafe_code)]
 
+mod api;
 mod clipper_d;
 #[allow(dead_code)] // TEMP: internal helpers are consumed by later tasks; removed in task 16
 mod core;
@@ -19,6 +20,10 @@ pub use crate::core::{
     strip_duplicates, strip_duplicates_paths, strip_near_equal, strip_near_equal_paths,
     transform_path, transform_paths,
 };
+pub use api::{
+    boolean_op, boolean_op_d, boolean_op_tree, boolean_op_tree_d, difference, difference_d,
+    intersect, intersect_d, union, union_d, union_self, union_self_d, xor, xor_d,
+};
 #[cfg(feature = "usingz")]
 pub use clipper_d::ZCallbackD;
 pub use clipper_d::{ClipperD, SolutionD};
@@ -34,4 +39,11 @@ pub use rectclip::{
     RectClip64, RectClipLines64, rect_clip, rect_clip_d, rect_clip_lines, rect_clip_lines_d,
     rect_clip_lines_path, rect_clip_path,
 };
-pub use utils::{ellipse, ellipse_rect};
+#[cfg(feature = "usingz")]
+pub use utils::make_path_z;
+pub use utils::{
+    check_polytree_fully_contains_children, distance, ellipse, ellipse_rect, length, make_path,
+    make_path_d, near_collinear, poly_tree_to_paths, ramer_douglas_peucker,
+    ramer_douglas_peucker_paths, simplify_path, simplify_paths, translate_path, translate_paths,
+    trim_collinear, trim_collinear_d,
+};

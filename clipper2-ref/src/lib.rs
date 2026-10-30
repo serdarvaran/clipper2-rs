@@ -404,6 +404,35 @@ macro_rules! reference_api {
                 diff: i32,
                 out: *mut *mut RefOut,
             ) -> i32;
+            #[link_name = concat!($prefix, "util64")]
+            fn util64_raw(
+                op: i32,
+                eps: f64,
+                flag: i32,
+                x: i64,
+                y: i64,
+                rx: f64,
+                ry: f64,
+                steps: i32,
+                paths: In64,
+                ret: *mut i32,
+                out: *mut *mut RefOut,
+            ) -> i32;
+            #[link_name = concat!($prefix, "utilD")]
+            fn util_d_raw(
+                op: i32,
+                eps: f64,
+                flag: i32,
+                precision: i32,
+                x: f64,
+                y: f64,
+                rx: f64,
+                ry: f64,
+                steps: i32,
+                paths: InD,
+                ret: *mut i32,
+                out: *mut *mut RefOut,
+            ) -> i32;
             #[link_name = concat!($prefix, "triangulate64")]
             fn triangulate64(
                 delaunay: i32,
@@ -835,6 +864,77 @@ macro_rules! reference_api {
                 )
             };
             take_d(code, out).map(|d| d.paths)
+        }
+
+        /// Utility dispatch: 0 SimplifyPaths, 1 RamerDouglasPeucker, 2 TrimCollinear (first path),
+        /// 3 PointInPolygon, 4 Ellipse, 5 CheckPolytreeFullyContainsChildren of a union tree (paths =
+        /// PolyTreeToPaths64), 6 TranslatePaths. Returns the integer result and the paths.
+        pub fn util(
+            op: i32,
+            eps: f64,
+            flag: i32,
+            x: i64,
+            y: i64,
+            rx: f64,
+            ry: f64,
+            steps: i32,
+            paths: &[Vec<$P>],
+        ) -> Result<(i32, Vec<Vec<$P>>), String> {
+            let flat = Flat::new(paths);
+            let (mut ret, mut out) = (0, ptr::null_mut());
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                util64_raw(
+                    op,
+                    eps,
+                    flag,
+                    x,
+                    y,
+                    rx,
+                    ry,
+                    steps,
+                    flat.input(),
+                    &mut ret,
+                    &mut out,
+                )
+            };
+            take(code, out).map(|d| (ret, d.paths))
+        }
+
+        /// Floating-point utility dispatch: 0 SimplifyPaths, 1 RamerDouglasPeucker, 2 TrimCollinear
+        /// (with `precision`), 3 PointInPolygon, 4 Ellipse.
+        pub fn util_d(
+            op: i32,
+            eps: f64,
+            flag: i32,
+            precision: i32,
+            x: f64,
+            y: f64,
+            rx: f64,
+            ry: f64,
+            steps: i32,
+            paths: &[Vec<$PD>],
+        ) -> Result<(i32, Vec<Vec<$PD>>), String> {
+            let flat = FlatD::new(paths);
+            let (mut ret, mut out) = (0, ptr::null_mut());
+            // SAFETY: inputs outlive the call; the shim copies them.
+            let code = unsafe {
+                util_d_raw(
+                    op,
+                    eps,
+                    flag,
+                    precision,
+                    x,
+                    y,
+                    rx,
+                    ry,
+                    steps,
+                    flat.input(),
+                    &mut ret,
+                    &mut out,
+                )
+            };
+            take_d(code, out).map(|d| (ret, d.paths))
         }
 
         /// `RectClip(rect, paths)` with `rect = (left, top, right, bottom)`.

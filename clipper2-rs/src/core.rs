@@ -27,6 +27,8 @@ pub enum ClipperError {
     InvalidScale,
     /// The clipping engine could not complete the operation.
     ExecuteFailed,
+    /// A flat coordinate list does not hold whole points.
+    OddCoordinateCount,
 }
 
 impl fmt::Display for ClipperError {
@@ -36,6 +38,7 @@ impl fmt::Display for ClipperError {
             Self::PrecisionOutOfRange => "Precision exceeds the permitted range",
             Self::InvalidScale => "Invalid scale (either 0 or too large)",
             Self::ExecuteFailed => "Clipping operation failed",
+            Self::OddCoordinateCount => "There must be 2 values for each coordinate",
         })
     }
 }
