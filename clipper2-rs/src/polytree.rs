@@ -5,9 +5,11 @@ use crate::core::{Coord, Path, area};
 /// One polygon of a [`PolyTree`] with links to its parent and children.
 #[derive(Clone, Debug)]
 pub struct PolyNode<T> {
+    /// The polygon's vertices.
     pub polygon: Path<T>,
     /// `None` for top-level polygons.
     pub parent: Option<usize>,
+    /// Indices of the polygons directly inside this one.
     pub children: Vec<usize>,
 }
 
@@ -19,9 +21,13 @@ pub struct PolyTree<T> {
     roots: Vec<usize>,
 }
 
+/// Integer node (`PolyPath64`).
 pub type PolyNode64 = PolyNode<i64>;
+/// Floating-point node (`PolyPathD`).
 pub type PolyNodeD = PolyNode<f64>;
+/// Integer polygon tree (`PolyTree64`).
 pub type PolyTree64 = PolyTree<i64>;
+/// Floating-point polygon tree (`PolyTreeD`).
 pub type PolyTreeD = PolyTree<f64>;
 
 impl<T> Default for PolyTree<T> {
@@ -39,6 +45,7 @@ impl<T: Coord> PolyTree<T> {
         &self.roots
     }
 
+    /// The node at index `id`; panics if out of range.
     pub fn node(&self, id: usize) -> &PolyNode<T> {
         &self.nodes[id]
     }
@@ -48,10 +55,12 @@ impl<T: Coord> PolyTree<T> {
         self.nodes.len()
     }
 
+    /// True if the tree holds no polygons.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
 
+    /// Removes every polygon.
     pub fn clear(&mut self) {
         self.nodes.clear();
         self.roots.clear();

@@ -368,8 +368,15 @@ impl ClipperBase {
         for i in 0..self.intersect_nodes.len() {
             if !self.edges_adjacent_in_ael(&self.intersect_nodes[i]) {
                 let mut j = i + 1;
-                while !self.edges_adjacent_in_ael(&self.intersect_nodes[j]) {
+                // Upstream reads past the end if no later node is adjacent.
+                while j < self.intersect_nodes.len()
+                    && !self.edges_adjacent_in_ael(&self.intersect_nodes[j])
+                {
                     j += 1;
+                }
+                if j == self.intersect_nodes.len() {
+                    self.succeeded = false;
+                    return;
                 }
                 self.intersect_nodes.swap(i, j);
             }

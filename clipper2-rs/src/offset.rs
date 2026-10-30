@@ -18,9 +18,13 @@ const ARC_CONST: f64 = 0.002; // 1/500
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JoinType {
+    /// Joins are squared at exactly the offset distance.
     Square = 0,
+    /// Like `Square`, but the offset distance varies with the angle (simpler and faster).
     Bevel = 1,
+    /// Convex joins are rounded at the offset distance.
     Round = 2,
+    /// Joins are mitered, falling back to `Square` beyond the miter limit.
     Miter = 3,
 }
 
@@ -32,8 +36,11 @@ pub enum EndType {
     Polygon = 0,
     /// Polylines joined end to end and offset on both sides.
     Joined = 1,
+    /// Open paths offset on both sides with square blunt ends.
     Butt = 2,
+    /// Open paths offset on both sides with square extended ends.
     Square = 3,
+    /// Open paths offset on both sides with round extended ends.
     Round = 4,
 }
 
@@ -77,7 +84,8 @@ fn get_lowest_closed_path_info(paths: &Paths64) -> (Option<usize>, bool) {
 impl Group {
     fn new(paths: &Paths64, join_type: JoinType, end_type: EndType) -> Self {
         let is_joined = matches!(end_type, EndType::Polygon | EndType::Joined);
-        let mut paths_in = paths.clone();
+        // Empty paths would make the offset index past the end (undefined behaviour upstream).
+        let mut paths_in: Paths64 = paths.iter().filter(|p| !p.is_empty()).cloned().collect();
         for p in &mut paths_in {
             strip_duplicates(p, is_joined);
         }
@@ -177,6 +185,7 @@ impl Default for ClipperOffset {
 }
 
 impl ClipperOffset {
+    /// An empty offsetter; see the accessors below for each setting.
     pub fn new(
         miter_limit: f64,
         arc_tolerance: f64,
@@ -205,34 +214,43 @@ impl ClipperOffset {
         }
     }
 
+    /// Maximum miter length, in multiples of `delta`, before `JoinType::Miter` squares a join.
     pub fn miter_limit(&self) -> f64 {
         self.miter_limit
     }
 
+    /// Sets [`Self::miter_limit`].
     pub fn set_miter_limit(&mut self, value: f64) {
         self.miter_limit = value;
     }
 
+    /// Maximum deviation of flattened round joins and ends from the true arc; `0` picks
+    /// `|delta| / 500`.
     pub fn arc_tolerance(&self) -> f64 {
         self.arc_tolerance
     }
 
+    /// Sets [`Self::arc_tolerance`].
     pub fn set_arc_tolerance(&mut self, value: f64) {
         self.arc_tolerance = value;
     }
 
+    /// Whether the final union keeps collinear vertices.
     pub fn preserve_collinear(&self) -> bool {
         self.preserve_collinear
     }
 
+    /// Sets [`Self::preserve_collinear`].
     pub fn set_preserve_collinear(&mut self, value: bool) {
         self.preserve_collinear = value;
     }
 
+    /// Whether solution paths have reversed orientation.
     pub fn reverse_solution(&self) -> bool {
         self.reverse_solution
     }
 
+    /// Sets [`Self::reverse_solution`].
     pub fn set_reverse_solution(&mut self, value: bool) {
         self.reverse_solution = value;
     }
@@ -243,11 +261,13 @@ impl ClipperOffset {
         self.z_callback = cb.map(|cb| std::rc::Rc::new(std::cell::RefCell::new(cb)));
     }
 
+    /// Adds one path to be offset with the given join and end types.
     pub fn add_path(&mut self, path: &Path64, join_type: JoinType, end_type: EndType) {
         self.groups
             .push(Group::new(&vec![path.clone()], join_type, end_type));
     }
 
+    /// Adds paths to be offset together with the given join and end types.
     pub fn add_paths(&mut self, paths: &Paths64, join_type: JoinType, end_type: EndType) {
         if paths.is_empty() {
             return;
@@ -255,6 +275,7 @@ impl ClipperOffset {
         self.groups.push(Group::new(paths, join_type, end_type));
     }
 
+    /// Removes every added path.
     pub fn clear(&mut self) {
         self.groups.clear();
         self.norms.clear();
@@ -288,9 +309,12 @@ impl ClipperOffset {
     fn execute_internal(
         &mut self,
         delta: f64,
-        mut cb: Option<DeltaCallback64>,
+        cb: Option<DeltaCallback64>,
     ) -> Result<(), ClipperError> {
         self.solution.clear();
+        if !delta.is_finite() {
+            return Err(ClipperError::InvalidDelta);
+        }
         for g in &self.groups {
             check_range(&g.paths_in)?;
         }
@@ -309,11 +333,29 @@ impl ClipperOffset {
                 2.0 / (self.miter_limit * self.miter_limit)
             };
             self.delta = delta;
+            let mut invalid_delta = false;
+            let mut checked = cb.map(|f| {
+                let invalid = &mut invalid_delta;
+                move |path: &Path64, norms: &PathD, j: usize, k: usize| {
+                    let d = f(path, norms, j, k);
+                    if d.is_finite() {
+                        d
+                    } else {
+                        *invalid = true;
+                        0.0
+                    }
+                }
+            });
+            let mut cb: Option<DeltaCallback64> = checked.as_mut().map(|f| f as DeltaCallback64);
             let groups = std::mem::take(&mut self.groups);
             for g in &groups {
                 self.do_group_offset(g, &mut cb);
             }
             self.groups = groups;
+            if invalid_delta {
+                self.solution.clear();
+                return Err(ClipperError::InvalidDelta);
+            }
         }
         Ok(())
     }

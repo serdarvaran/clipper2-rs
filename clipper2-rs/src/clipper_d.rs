@@ -7,7 +7,9 @@ use crate::polytree::{PolyTree64, PolyTreeD};
 /// Closed and open paths produced by [`ClipperD::execute`].
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SolutionD {
+    /// Closed paths (polygons).
     pub closed: PathsD,
+    /// Open paths (polylines) from open subjects.
     pub open: PathsD,
 }
 
@@ -51,18 +53,22 @@ impl ClipperD {
         })
     }
 
+    /// Keep collinear vertices in closed paths (default `true`).
     pub fn set_preserve_collinear(&mut self, value: bool) {
         self.base.preserve_collinear = value;
     }
 
+    /// Whether collinear vertices are kept; see [`Self::set_preserve_collinear`].
     pub fn preserve_collinear(&self) -> bool {
         self.base.preserve_collinear
     }
 
+    /// Reverse the orientation of every solution path (default `false`).
     pub fn set_reverse_solution(&mut self, value: bool) {
         self.base.reverse_solution = value;
     }
 
+    /// Whether solution paths are reversed; see [`Self::set_reverse_solution`].
     pub fn reverse_solution(&self) -> bool {
         self.base.reverse_solution
     }
@@ -78,18 +84,22 @@ impl ClipperD {
         Ok(())
     }
 
+    /// Adds closed subject paths; fails if a scaled coordinate is out of range.
     pub fn add_subject(&mut self, subjects: &PathsD) -> Result<(), ClipperError> {
         self.add(subjects, PathType::Subject, false)
     }
 
+    /// Adds open subject paths (polylines); fails if a scaled coordinate is out of range.
     pub fn add_open_subject(&mut self, open_subjects: &PathsD) -> Result<(), ClipperError> {
         self.add(open_subjects, PathType::Subject, true)
     }
 
+    /// Adds closed clip paths; fails if a scaled coordinate is out of range.
     pub fn add_clip(&mut self, clips: &PathsD) -> Result<(), ClipperError> {
         self.add(clips, PathType::Clip, false)
     }
 
+    /// Removes every added path.
     pub fn clear(&mut self) {
         self.base.clear();
     }
@@ -100,6 +110,7 @@ impl ClipperD {
         self.z_callback = cb.map(|cb| std::rc::Rc::new(std::cell::RefCell::new(cb)));
     }
 
+    /// Performs the boolean operation.
     pub fn execute(
         &mut self,
         clip_type: ClipType,

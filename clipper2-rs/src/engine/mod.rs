@@ -295,7 +295,9 @@ pub struct Clipper64 {
 /// Closed and open paths produced by [`Clipper64::execute`].
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Solution {
+    /// Closed paths (polygons).
     pub closed: Paths64,
+    /// Open paths (polylines) from open subjects.
     pub open: Paths64,
 }
 
@@ -306,6 +308,7 @@ impl Default for Clipper64 {
 }
 
 impl Clipper64 {
+    /// An empty clipper.
     pub fn new() -> Self {
         Clipper64 {
             base: ClipperBase::default(),
@@ -317,6 +320,7 @@ impl Clipper64 {
         self.base.preserve_collinear = value;
     }
 
+    /// Whether collinear vertices are kept; see [`Self::set_preserve_collinear`].
     pub fn preserve_collinear(&self) -> bool {
         self.base.preserve_collinear
     }
@@ -326,18 +330,22 @@ impl Clipper64 {
         self.base.reverse_solution = value;
     }
 
+    /// Whether solution paths are reversed; see [`Self::set_reverse_solution`].
     pub fn reverse_solution(&self) -> bool {
         self.base.reverse_solution
     }
 
+    /// Adds closed subject paths.
     pub fn add_subject(&mut self, subjects: &Paths64) {
         self.base.add_paths(subjects, PathType::Subject, false);
     }
 
+    /// Adds open subject paths (polylines).
     pub fn add_open_subject(&mut self, open_subjects: &Paths64) {
         self.base.add_paths(open_subjects, PathType::Subject, true);
     }
 
+    /// Adds closed clip paths.
     pub fn add_clip(&mut self, clips: &Paths64) {
         self.base.add_paths(clips, PathType::Clip, false);
     }

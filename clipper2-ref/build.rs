@@ -40,7 +40,10 @@ fn main() {
 
     let mut sources = Vec::new();
     for name in SOURCES {
-        let mut text = fs::read_to_string(lib.join("src").join(name)).unwrap();
+        // A Windows checkout may have CRLF line ends; the patches below match LF text.
+        let mut text = fs::read_to_string(lib.join("src").join(name))
+            .unwrap()
+            .replace("\r\n", "\n");
         if name == "clipper.engine.cpp" {
             assert!(
                 text.contains(UNSTABLE_SORT),

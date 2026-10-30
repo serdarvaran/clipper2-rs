@@ -13,6 +13,7 @@ fn code(r: &Result<Paths64, TriangulateError>) -> u8 {
         Err(TriangulateError::PathsIntersect) => 3,
         Err(TriangulateError::CoordinateOutOfRange) => 4,
         Err(TriangulateError::Degenerate) => 5,
+        Err(e) => panic!("unexpected error {e:?}"),
     }
 }
 

@@ -10,7 +10,6 @@ use std::ops::{Add, Sub};
 pub const MAX_COORD: i64 = i64::MAX >> 2;
 /// Smallest coordinate accepted by the integer engine.
 pub const MIN_COORD: i64 = -MAX_COORD;
-pub(crate) const INVALID: i64 = i64::MAX;
 pub(crate) const MAX_COORD_F: f64 = MAX_COORD as f64;
 pub(crate) const MIN_COORD_F: f64 = MIN_COORD as f64;
 /// Largest number of decimal places accepted by the floating-point APIs.
@@ -18,6 +17,7 @@ pub const MAX_DECIMAL_PRECISION: i32 = 8;
 
 /// Errors reported by Clipper2 operations (the C++ library throws `Clipper2Exception`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ClipperError {
     /// A coordinate (after scaling, for the floating-point APIs) is outside `MIN_COORD..=MAX_COORD`.
     CoordinateOutOfRange,
@@ -29,6 +29,8 @@ pub enum ClipperError {
     ExecuteFailed,
     /// A flat coordinate list does not hold whole points.
     OddCoordinateCount,
+    /// An offset delta is NaN or infinite (upstream would loop or allocate without bound).
+    InvalidDelta,
 }
 
 impl fmt::Display for ClipperError {
@@ -39,6 +41,7 @@ impl fmt::Display for ClipperError {
             Self::InvalidScale => "Invalid scale (either 0 or too large)",
             Self::ExecuteFailed => "Clipping operation failed",
             Self::OddCoordinateCount => "There must be 2 values for each coordinate",
+            Self::InvalidDelta => "Offset delta is not finite",
         })
     }
 }
@@ -49,10 +52,14 @@ impl std::error::Error for ClipperError {}
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum FillRule {
+    /// Only odd-numbered sub-regions are filled (also called Alternate).
     #[default]
     EvenOdd = 0,
+    /// Only non-zero sub-regions are filled (also called Winding).
     NonZero = 1,
+    /// Only sub-regions with winding counts `> 0` are filled.
     Positive = 2,
+    /// Only sub-regions with winding counts `< 0` are filled.
     Negative = 3,
 }
 
@@ -60,44 +67,67 @@ pub enum FillRule {
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum ClipType {
+    /// No clipping operation.
     #[default]
     NoClip = 0,
+    /// AND: regions covered by both subject and clip polygons.
     Intersection = 1,
+    /// OR: regions covered by subject or clip polygons, or both.
     Union = 2,
+    /// NOT: regions covered by subject but not clip polygons.
     Difference = 3,
+    /// Exclusive or: regions covered by subject or clip polygons, but not both.
     Xor = 4,
 }
 
 /// Result of [`point_in_polygon`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PointInPolygonResult {
+    /// The point lies on the polygon's boundary.
     IsOn,
+    /// The point is inside the polygon.
     IsInside,
+    /// The point is outside the polygon.
     IsOutside,
 }
 
-/// Coordinate type of a [`Point`]: `i64` or `f64`.
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for i64 {}
+    impl Sealed for f64 {}
+}
+
+/// Coordinate type of a [`Point`]: `i64` or `f64`. Sealed: only these two implement it.
 pub trait Coord:
-    Copy + PartialOrd + PartialEq + fmt::Debug + Default + Send + Sync + 'static
+    sealed::Sealed + Copy + PartialOrd + PartialEq + fmt::Debug + Default + Send + Sync + 'static
 {
     /// True for `i64`.
     const INTEGRAL: bool;
+    /// Largest value (`std::numeric_limits<T>::max()`).
     const MAX: Self;
+    /// Smallest value (`std::numeric_limits<T>::lowest()`).
     const LOWEST: Self;
+    /// The value as `f64`.
     fn to_f64(self) -> f64;
     /// `static_cast<T>(v)` for integers (truncation), identity for `f64`.
     fn from_f64_cast(v: f64) -> Self;
     /// `Point<T>` construction from a `double`: `std::round` for integers.
     fn from_f64_round(v: f64) -> Self;
+    /// `static_cast<T>(v)` from `i64`.
     fn from_i64(v: i64) -> Self;
     /// The value itself for `i64`; `static_cast<int64_t>` (truncation) for `f64`.
     fn as_i64(self) -> i64;
     /// `static_cast<__int128_t>(v)`.
     fn as_i128(self) -> i128;
+    /// `self + o` (wrapping for `i64`).
     fn add(self, o: Self) -> Self;
+    /// `self - o` (wrapping for `i64`).
     fn sub(self, o: Self) -> Self;
+    /// `self * o` (wrapping for `i64`).
     fn mul(self, o: Self) -> Self;
+    /// `self / 2` (truncating for `i64`).
     fn half(self) -> Self;
+    /// True if the value is zero.
     fn is_zero(self) -> bool;
 }
 
@@ -205,8 +235,11 @@ impl Coord for f64 {
 /// part in equality.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Point<T> {
+    /// X coordinate.
     pub x: T,
+    /// Y coordinate.
     pub y: T,
+    /// User data carried through clipping (`usingz` feature).
     #[cfg(feature = "usingz")]
     pub z: i64,
 }
@@ -219,9 +252,13 @@ pub type PointD = Point<f64>;
 pub type Path<T> = Vec<Point<T>>;
 /// A list of paths.
 pub type Paths<T> = Vec<Path<T>>;
+/// An integer path.
 pub type Path64 = Path<i64>;
+/// A list of integer paths.
 pub type Paths64 = Paths<i64>;
+/// A floating-point path.
 pub type PathD = Path<f64>;
+/// A list of floating-point paths.
 pub type PathsD = Paths<f64>;
 
 impl<T: Coord> Point<T> {
@@ -328,13 +365,6 @@ impl<T: Coord> Sub for Point<T> {
     }
 }
 
-pub(crate) const INVALID_POINT64: Point64 = Point {
-    x: i64::MAX,
-    y: i64::MAX,
-    #[cfg(feature = "usingz")]
-    z: 0,
-};
-
 /// `static_cast` between coordinate types, rounding `f64` -> `i64` like `Point::Init`.
 #[inline]
 pub(crate) fn convert_coord<T: Coord, U: Coord>(v: T) -> U {
@@ -354,16 +384,23 @@ pub fn mid_point<T: Coord>(p1: Point<T>, p2: Point<T>) -> Point<T> {
 /// An axis-aligned rectangle; `top < bottom` in Clipper2's convention.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rect<T> {
+    /// Smallest x.
     pub left: T,
+    /// Smallest y.
     pub top: T,
+    /// Largest x.
     pub right: T,
+    /// Largest y.
     pub bottom: T,
 }
 
+/// An integer rectangle.
 pub type Rect64 = Rect<i64>;
+/// A floating-point rectangle.
 pub type RectD = Rect<f64>;
 
 impl<T: Coord> Rect<T> {
+    /// A rectangle from its edges.
     pub fn new(left: T, top: T, right: T, bottom: T) -> Self {
         Rect {
             left,
@@ -383,18 +420,22 @@ impl<T: Coord> Rect<T> {
         }
     }
 
+    /// False for the [`Rect::invalid`] accumulator.
     pub fn is_valid(&self) -> bool {
         self.left != T::MAX
     }
 
+    /// `right - left`.
     pub fn width(&self) -> T {
         self.right.sub(self.left)
     }
 
+    /// `bottom - top`.
     pub fn height(&self) -> T {
         self.bottom.sub(self.top)
     }
 
+    /// The centre point (integer division for `i64`).
     pub fn mid_point(&self) -> Point<T> {
         Point::new(
             self.left.add(self.right).half(),
@@ -425,10 +466,12 @@ impl<T: Coord> Rect<T> {
             && rec.bottom <= self.bottom
     }
 
+    /// True if the rectangle has no area (`bottom <= top` or `right <= left`).
     pub fn is_empty(&self) -> bool {
         self.bottom <= self.top || self.right <= self.left
     }
 
+    /// True if the rectangles overlap or touch.
     pub fn intersects(&self, rec: &Rect<T>) -> bool {
         max(self.left, rec.left) <= min(self.right, rec.right)
             && max(self.top, rec.top) <= min(self.bottom, rec.bottom)
@@ -692,11 +735,6 @@ pub fn strip_duplicates_paths<T: Coord>(paths: &mut Paths<T>, is_closed_path: bo
     }
 }
 
-#[inline]
-fn tri_sign(x: i64) -> i32 {
-    (x > 0) as i32 - (x < 0) as i32
-}
-
 /// `a * b == c * d` without overflow.
 #[inline]
 pub(crate) fn products_are_equal(a: i64, b: i64, c: i64, d: i64) -> bool {
@@ -843,17 +881,6 @@ pub(crate) fn reflect_point<T: Coord>(pt: Point<T>, pivot: Point<T>) -> Point<T>
         pivot.x.add(pivot.x.sub(pt.x)),
         pivot.y.add(pivot.y.sub(pt.y)),
     )
-}
-
-#[inline]
-pub(crate) fn get_sign(val: f64) -> i32 {
-    if val == 0.0 {
-        0
-    } else if val > 0.0 {
-        1
-    } else {
-        -1
-    }
 }
 
 /// True if two segments cross; touching counts only when `inclusive`.

@@ -15,16 +15,19 @@ pub struct ReuseableDataContainer64 {
 }
 
 impl ReuseableDataContainer64 {
+    /// An empty container.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Removes every added path.
     pub fn clear(&mut self) {
         self.vertices.clear();
         self.minima.clear();
         self.range_error = false;
     }
 
+    /// Adds `paths` as subjects or clips; `is_open` marks them as open polylines.
     pub fn add_paths(&mut self, paths: &Paths64, polytype: PathType, is_open: bool) {
         if check_range(paths).is_err() {
             self.range_error = true;

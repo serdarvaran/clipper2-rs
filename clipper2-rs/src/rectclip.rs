@@ -1037,12 +1037,14 @@ pub struct RectClip64 {
 }
 
 impl RectClip64 {
+    /// A clipper for `rect`.
     pub fn new(rect: Rect64) -> Self {
         RectClip64 {
             base: RectClipBase::new(rect),
         }
     }
 
+    /// Clips each closed path to the rectangle.
     pub fn execute(&mut self, paths: &Paths64) -> Paths64 {
         let b = &mut self.base;
         let mut result = Vec::new();
@@ -1083,12 +1085,14 @@ pub struct RectClipLines64 {
 }
 
 impl RectClipLines64 {
+    /// A clipper for `rect`.
     pub fn new(rect: Rect64) -> Self {
         RectClipLines64 {
             base: RectClipBase::new(rect),
         }
     }
 
+    /// Clips each open path to the rectangle.
     pub fn execute(&mut self, paths: &Paths64) -> Paths64 {
         let b = &mut self.base;
         let mut result = Vec::new();

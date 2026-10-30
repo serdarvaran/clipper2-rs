@@ -31,6 +31,7 @@ pub fn boolean_op_tree(
     Ok(c.execute_tree(clip_type, fill_rule)?.0)
 }
 
+/// Intersection of `subjects` and `clips` (`Intersect`).
 pub fn intersect(
     subjects: &Paths64,
     clips: &Paths64,
@@ -39,6 +40,7 @@ pub fn intersect(
     boolean_op(ClipType::Intersection, fill_rule, subjects, clips)
 }
 
+/// Union of `subjects` and `clips` (`Union`).
 pub fn union(
     subjects: &Paths64,
     clips: &Paths64,
@@ -54,6 +56,7 @@ pub fn union_self(subjects: &Paths64, fill_rule: FillRule) -> Result<Paths64, Cl
     Ok(c.execute(ClipType::Union, fill_rule)?.closed)
 }
 
+/// `subjects` minus `clips` (`Difference`).
 pub fn difference(
     subjects: &Paths64,
     clips: &Paths64,
@@ -62,6 +65,7 @@ pub fn difference(
     boolean_op(ClipType::Difference, fill_rule, subjects, clips)
 }
 
+/// Exclusive-or of `subjects` and `clips` (`Xor`).
 pub fn xor(
     subjects: &Paths64,
     clips: &Paths64,
@@ -98,6 +102,7 @@ pub fn boolean_op_tree_d(
     Ok(c.execute_tree(clip_type, fill_rule)?.0)
 }
 
+/// [`intersect`] on floating-point paths with `precision` decimal places.
 pub fn intersect_d(
     subjects: &PathsD,
     clips: &PathsD,
@@ -113,6 +118,7 @@ pub fn intersect_d(
     )
 }
 
+/// [`union`] on floating-point paths with `precision` decimal places.
 pub fn union_d(
     subjects: &PathsD,
     clips: &PathsD,
@@ -122,6 +128,7 @@ pub fn union_d(
     boolean_op_d(ClipType::Union, fill_rule, subjects, clips, precision)
 }
 
+/// [`union_self`] on floating-point paths with `precision` decimal places.
 pub fn union_self_d(
     subjects: &PathsD,
     fill_rule: FillRule,
@@ -132,6 +139,7 @@ pub fn union_self_d(
     Ok(c.execute(ClipType::Union, fill_rule)?.closed)
 }
 
+/// [`difference`] on floating-point paths with `precision` decimal places.
 pub fn difference_d(
     subjects: &PathsD,
     clips: &PathsD,
@@ -141,6 +149,7 @@ pub fn difference_d(
     boolean_op_d(ClipType::Difference, fill_rule, subjects, clips, precision)
 }
 
+/// [`xor`] on floating-point paths with `precision` decimal places.
 pub fn xor_d(
     subjects: &PathsD,
     clips: &PathsD,

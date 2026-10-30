@@ -1,9 +1,29 @@
-//! Pure Rust port of [Clipper2](https://github.com/AngusJohnson/Clipper2) 2.0.1 by Angus Johnson.
+//! Pure Rust port of [Clipper2](https://github.com/AngusJohnson/Clipper2) 2.0.1 by Angus Johnson:
+//! polygon boolean operations, offsetting, rectangle clipping, Minkowski sums and differences,
+//! and constrained Delaunay triangulation.
+//!
+//! Results are bit-for-bit identical to the C++ library except where the repository README
+//! lists a deliberate difference (stable ordering of equal intersections, and two upstream
+//! non-termination bugs fixed).
+//!
+//! ```
+//! use clipper2_rs::{FillRule, intersect, make_path};
+//!
+//! let subject = vec![make_path(&[100, 50, 10, 79, 65, 2, 65, 98, 10, 21])?];
+//! let clip = vec![make_path(&[98, 63, 4, 68, 77, 8, 52, 100, 19, 12])?];
+//! let solution = intersect(&subject, &clip, FillRule::NonZero)?;
+//! assert_eq!(solution.len(), 1);
+//! # Ok::<(), clipper2_rs::ClipperError>(())
+//! ```
+//!
+//! Integer paths (`Paths64`) are the native form; the `*_d` functions and [`ClipperD`] take
+//! floating-point paths and scale them by a precision in decimal places. The `usingz` feature
+//! adds a user `z` value to every point (it is not additive: see the README).
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
 
 mod api;
 mod clipper_d;
-#[allow(dead_code)] // TEMP: internal helpers are consumed by later tasks; removed in task 16
 mod core;
 mod engine;
 mod minkowski;

@@ -9,7 +9,9 @@ pub(crate) const NONE: Idx = u32::MAX;
 /// Which input a path belongs to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PathType {
+    /// A subject path.
     Subject,
+    /// A clip path.
     Clip,
 }
 

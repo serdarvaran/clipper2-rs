@@ -12,6 +12,7 @@ const NONE: Idx = u32::MAX;
 
 /// Why [`triangulate`] produced no triangles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TriangulateError {
     /// Internal failure (upstream returns `fail` or throws).
     Fail,
