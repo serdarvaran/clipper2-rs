@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Upstream fixes made after 2.0.1 (now tracked from
+  [PolyClipping/Clipper2](https://github.com/PolyClipping/Clipper2), commit `27a64a6`):
+  - `FixSelfIntersects` no longer special-cases adjacent micro self-intersections; it splits
+    them like any other (upstream #1067). Some boolean, offset and Minkowski results change.
+  - Triangulation ignores segments that share an end point when testing for intersections,
+    instead of relying on an exact zero test (upstream #1055, #1056).
+
 ## 0.1.0 (2026-10-31)
 
 First release: a port of Clipper2 2.0.1 (upstream commit `21ebba0`).

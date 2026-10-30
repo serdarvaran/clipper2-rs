@@ -41,7 +41,7 @@ impl fmt::Display for TriangulateError {
 
 impl std::error::Error for TriangulateError {}
 
-/// Upstream's `throw "oops"`: an inconsistent internal state.
+/// Upstream's `DoError(undefined_error_i)`: an inconsistent internal state.
 #[derive(Debug)]
 struct Oops;
 
@@ -135,6 +135,9 @@ fn shortest_dist_from_segment(pt: Point64, seg1: Point64, seg2: Point64) -> f64 
 }
 
 fn segs_intersect(s1a: Point64, s1b: Point64, s2a: Point64, s2b: Point64) -> IntersectKind {
+    if s1a == s2a || s1b == s2a || s1b == s2b {
+        return IntersectKind::None;
+    }
     let dy1 = s1b.y.wrapping_sub(s1a.y) as f64;
     let dx1 = s1b.x.wrapping_sub(s1a.x) as f64;
     let dy2 = s2b.y.wrapping_sub(s2a.y) as f64;
@@ -146,10 +149,7 @@ fn segs_intersect(s1a: Point64, s1b: Point64, s2a: Point64, s2b: Point64) -> Int
     let ax = s1a.x.wrapping_sub(s2a.x) as f64;
     let ay = s1a.y.wrapping_sub(s2a.y) as f64;
     let mut t = ax * dy2 - ay * dx2;
-    if t == 0.0 {
-        return IntersectKind::None;
-    }
-    if t > 0.0 {
+    if t >= 0.0 {
         if cp < 0.0 || t >= cp {
             return IntersectKind::None;
         }
@@ -157,10 +157,7 @@ fn segs_intersect(s1a: Point64, s1b: Point64, s2a: Point64, s2b: Point64) -> Int
         return IntersectKind::None;
     }
     t = ax * dy1 - ay * dx1;
-    if t == 0.0 {
-        return IntersectKind::None;
-    }
-    if t > 0.0 {
+    if t >= 0.0 {
         if cp > 0.0 && t < cp {
             return IntersectKind::Intersect;
         }

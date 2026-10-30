@@ -1,4 +1,4 @@
-//! Port of the upstream Clipper2 2.0.1 polytree gtests (`TestPolytreeHoles.cpp`,
+//! Port of the upstream Clipper2 polytree gtests (`TestPolytreeHoles.cpp`,
 //! `TestPolytreeIntersection.cpp`, `TestPolytreeUnion.cpp`); see `upstream.rs` for the rest.
 //! Path literals are copied verbatim from the C++ sources.
 

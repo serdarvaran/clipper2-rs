@@ -1,4 +1,4 @@
-//! Port of the upstream Clipper2 2.0.1 gtest suite (`CPP/Tests/*.cpp`), one `#[test]` per
+//! Port of the upstream Clipper2 gtest suite (`CPP/Tests/*.cpp`), one `#[test]` per
 //! `TEST()`. Polytree tests live in `upstream_polytree.rs`, offset tests in
 //! `upstream_offsets.rs`.
 //!

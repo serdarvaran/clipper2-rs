@@ -1,4 +1,4 @@
-//! Port of the upstream Clipper2 2.0.1 offset gtests (`TestOffsets.cpp`,
+//! Port of the upstream Clipper2 offset gtests (`TestOffsets.cpp`,
 //! `TestOffsetOrientation.cpp`); see `upstream.rs` for the rest. Path literals are copied
 //! verbatim from the C++ sources.
 

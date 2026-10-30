@@ -1,0 +1,4 @@
+Upstream: https://github.com/PolyClipping/Clipper2 (continuation of the archived AngusJohnson/Clipper2)
+Commit: 27a64a61 (main, 2026-10-29) = release 2.0.1 + fixes #1055/#1056 (triangulation) and #1067 (FixSelfIntersects)
+Contents: CPP/Clipper2Lib, CPP/Tests, CPP/Utils, Tests (data), LICENSE.
+Used only by the clipper2-ref test crate and the test suite; not part of the published crate.

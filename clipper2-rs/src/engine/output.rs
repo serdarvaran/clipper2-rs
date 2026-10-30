@@ -531,34 +531,20 @@ impl ClipperBase {
                 self.op(next_next).pt,
                 false,
             ) {
-                let nnn = self.op(next_next).next;
-                if segments_intersect(
-                    self.op(prev).pt,
-                    self.op(op2).pt,
-                    self.op(next_next).pt,
-                    self.op(nnn).pt,
-                    false,
-                ) {
-                    op2 = self.duplicate_op(op2, false);
-                    let p = self.op(self.op(self.op(self.op(op2).next).next).next).pt;
-                    self.opm(op2).pt = p;
-                    op2 = self.op(op2).next;
-                } else {
-                    let pts = self.or(outrec).pts;
-                    if op2 == pts || next == pts {
-                        let p = self.op(pts).prev;
-                        self.orm(outrec).pts = p;
-                    }
-                    self.do_split_op(outrec, op2);
-                    if self.or(outrec).pts == NONE {
-                        break;
-                    }
-                    op2 = self.or(outrec).pts;
-                    if self.op(op2).prev == self.op(self.op(op2).next).next {
-                        break;
-                    }
-                    continue;
+                let pts = self.or(outrec).pts;
+                if op2 == pts || next == pts {
+                    let p = self.op(pts).prev;
+                    self.orm(outrec).pts = p;
                 }
+                self.do_split_op(outrec, op2);
+                if self.or(outrec).pts == NONE {
+                    break;
+                }
+                op2 = self.or(outrec).pts;
+                if self.op(op2).prev == self.op(self.op(op2).next).next {
+                    break;
+                }
+                continue;
             } else {
                 op2 = self.op(op2).next;
             }

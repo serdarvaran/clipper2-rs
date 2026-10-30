@@ -1,6 +1,7 @@
 # clipper2-rs
 
-A pure Rust port of [Clipper2](https://github.com/AngusJohnson/Clipper2) 2.0.1 by Angus Johnson:
+A pure Rust port of [Clipper2](https://github.com/PolyClipping/Clipper2) by Angus Johnson (release 2.0.1
+plus the upstream fixes made since, commit `27a64a6`):
 polygon boolean operations (intersection, union, difference, XOR), offsetting, rectangle
 clipping, Minkowski sums and differences, constrained Delaunay triangulation, and optional
 Z values. It has no dependencies and no `unsafe` code (`#![forbid(unsafe_code)]`).
@@ -88,7 +89,7 @@ Run the comparison yourself with `cargo bench -p clipper2-rs`.
 
 ## Differences from the C++ library
 
-Results are identical to upstream 2.0.1 except in these cases:
+Results are identical to upstream except in these cases:
 
 1. **Order of equal intersections.** Upstream sorts intersections with `std::sort`, which leaves
    equal elements in whatever order the C++ standard library happens to produce. Results can
@@ -115,8 +116,6 @@ Results are identical to upstream 2.0.1 except in these cases:
    - If the intersection list cannot be processed in order, `execute` returns
      `ClipperError::ExecuteFailed`. Upstream reads past the end of the list.
 
-Fixes made upstream after 2.0.1 are not included yet.
-
 Triangulation is marked as beta upstream.
 
 ## The `usingz` feature
@@ -132,7 +131,7 @@ clipper2-rs. Libraries should leave the choice to the final application.
 |---|---|
 | `clipper2-rs/` | the published crate |
 | `clipper2-ref/` | test-only C++ reference: the upstream sources, built with `cc` |
-| `upstream/Clipper2-2.0.1/` | upstream sources and test data, as released |
+| `upstream/Clipper2/` | upstream sources and test data (commit `27a64a6`) |
 | `scripts/memguard.sh` | runs a command and kills it when it exceeds a memory or time limit |
 
 Use `scripts/memguard.sh` for large randomized runs. Upstream's triangulation can exhaust

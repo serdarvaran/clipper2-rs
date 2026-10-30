@@ -1,6 +1,6 @@
 mod common;
 
-use clipper2_rs::{ClipType, Clipper64, FillRule, Paths64, Point64};
+use clipper2_rs::{ClipType, Clipper64, FillRule, Paths64, Point64, area, area_paths};
 use common::*;
 
 const CLIP_TYPES: [ClipType; 4] = [
@@ -147,4 +147,64 @@ fn coincident_and_touching_match_reference() {
     for (name, s, c) in &cases {
         all_ops(&format!("coincident-{name}"), s, c);
     }
+}
+
+/// Upstream #1067: `FixSelfIntersects` rebuilt adjacent micro self-intersections into a polygon
+/// that covered area outside every input.
+#[test]
+fn union_with_sliver_triangles_matches_reference() {
+    let subject = vec![p(&[
+        (-45077288, -27835646),
+        (-45216220, -27853069),
+        (-44996290, -28378125),
+    ])];
+    let clip = vec![
+        p(&[
+            (-45943111, -27944226),
+            (-45990276, -27890686),
+            (-46034753, -27840198),
+        ]),
+        p(&[
+            (-44185329, -29939581),
+            (-45679436, -28243538),
+            (-47826654, -25806113),
+        ]),
+        p(&[
+            (-48000000, -29000000),
+            (-44185329, -29939581),
+            (-47826654, -25806113),
+        ]),
+        p(&[
+            (-45679436, -28243538),
+            (-45514581, -27890485),
+            (-45943111, -27944226),
+        ]),
+    ];
+    compare(
+        "sliver-union",
+        ClipType::Union,
+        FillRule::NonZero,
+        false,
+        false,
+        &subject,
+        &clip,
+    );
+    let mut c = Clipper64::new();
+    c.add_subject(&subject);
+    c.add_clip(&clip);
+    let solution = c
+        .execute(ClipType::Union, FillRule::NonZero)
+        .unwrap()
+        .closed;
+    let input_area: f64 = subject
+        .iter()
+        .chain(&clip)
+        .map(|path| area(path).abs())
+        .sum();
+    // Intersection points are rounded to integers, so the union may exceed the inputs slightly;
+    // the bug added area on the order of the big triangle's.
+    assert!(
+        area_paths(&solution).abs() <= input_area * (1.0 + 1e-6),
+        "{solution:?}"
+    );
 }

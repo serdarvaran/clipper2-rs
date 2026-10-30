@@ -1,4 +1,4 @@
-// C ABI over upstream Clipper2 2.0.1 for the clipper2-rs reference tests.
+// C ABI over upstream Clipper2 (upstream/Clipper2) for the clipper2-rs reference tests.
 // Compiled twice by build.rs: plain (ref_* symbols) and with USINGZ, where the
 // Clipper2Lib namespace is renamed to Clipper2LibZ (ref_z_* symbols).
 // Enum codes are Clipper2's own (ClipType Intersection = 1, ...).

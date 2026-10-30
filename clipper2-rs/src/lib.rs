@@ -1,6 +1,6 @@
-//! Pure Rust port of [Clipper2](https://github.com/AngusJohnson/Clipper2) 2.0.1 by Angus Johnson:
-//! polygon boolean operations, offsetting, rectangle clipping, Minkowski sums and differences,
-//! and constrained Delaunay triangulation.
+//! Pure Rust port of [Clipper2](https://github.com/PolyClipping/Clipper2) by Angus Johnson
+//! (2.0.1 plus later upstream fixes): polygon boolean operations, offsetting, rectangle
+//! clipping, Minkowski sums and differences, and constrained Delaunay triangulation.
 //!
 //! Results are bit-for-bit identical to the C++ library except where the repository README
 //! lists a deliberate difference (stable ordering of equal intersections, and two upstream

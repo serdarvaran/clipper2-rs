@@ -1,4 +1,4 @@
-//! Test-only bindings to the upstream C++ Clipper2 2.0.1 (built by `build.rs`).
+//! Test-only bindings to the upstream C++ Clipper2 in `upstream/Clipper2` (built by `build.rs`).
 //!
 //! Every function mirrors one upstream API and takes Clipper2's own enum codes
 //! (`ClipType::Intersection = 1`, `FillRule::NonZero = 1`, ...). The `z` module is the

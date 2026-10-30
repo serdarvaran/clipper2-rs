@@ -34,7 +34,7 @@ const TRI_SORTS: [(&str, &str); 2] = [
 
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let lib = manifest.join("../upstream/Clipper2-2.0.1/CPP/Clipper2Lib");
+    let lib = manifest.join("../upstream/Clipper2/CPP/Clipper2Lib");
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("clipper2-src");
     fs::create_dir_all(&out).unwrap();
 
@@ -91,5 +91,5 @@ fn main() {
     }
 
     println!("cargo:rerun-if-changed=shim/ref_shim.cpp");
-    println!("cargo:rerun-if-changed=../upstream/Clipper2-2.0.1/CPP/Clipper2Lib");
+    println!("cargo:rerun-if-changed=../upstream/Clipper2/CPP/Clipper2Lib");
 }

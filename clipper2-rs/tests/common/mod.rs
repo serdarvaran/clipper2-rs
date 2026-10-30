@@ -206,7 +206,7 @@ pub fn bits_d(paths: &[Vec<(f64, f64)>]) -> Vec<Vec<(u64, u64)>> {
 }
 
 pub fn upstream_tests_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../upstream/Clipper2-2.0.1/Tests")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../upstream/Clipper2/Tests")
 }
 
 /// One case of an upstream test-data file (the format `CPP/Utils/ClipFileLoad.cpp` reads).
