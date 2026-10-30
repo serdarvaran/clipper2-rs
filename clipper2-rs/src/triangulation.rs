@@ -955,15 +955,21 @@ impl Delaunay {
             self.vm(v0).inner_lm = true;
         }
         let mut v_prev = v0;
-        i = i_next;
-        // The walk from the top of this loop depends only on `i` and `v_prev`'s point, so a
-        // repeated pair means upstream would never stop (it adds vertices forever).
-        let mut seen = std::collections::HashSet::new();
+        // A valid walk is one lap: `i` advances `len` times, from i0 back to i0. Upstream never
+        // checks i0 inside the collinear skips, so on some self-intersecting paths it overshoots
+        // and walks (adding vertices) forever.
+        let mut steps = 0;
+        macro_rules! advance {
+            () => {
+                i = i_next;
+                steps += 1;
+                if steps > len {
+                    return Err(TriangulateError::Degenerate);
+                }
+            };
+        }
+        advance!();
         loop {
-            let p = self.pt(v_prev);
-            if !seen.insert((i, p.x, p.y)) {
-                return Err(TriangulateError::Degenerate);
-            }
             self.loc_mins.push(v_prev);
             let pp = self.pt(v_prev);
             if self.lowermost == NONE
@@ -974,17 +980,17 @@ impl Delaunay {
             }
             i_next = next_i(i, len);
             if cross_product_sign_t(self.pt(v_prev), path[i], path[i_next]) == 0 {
-                i = i_next;
+                advance!();
                 continue;
             }
             while path[i].y <= self.pt(v_prev).y {
                 let v = self.new_vertex(path[i]);
                 self.create_edge(v_prev, v, EdgeKind::Ascend);
                 v_prev = v;
-                i = i_next;
+                advance!();
                 i_next = next_i(i, len);
                 while cross_product_sign_t(self.pt(v_prev), path[i], path[i_next]) == 0 {
-                    i = i_next;
+                    advance!();
                     i_next = next_i(i, len);
                 }
             }
@@ -994,10 +1000,10 @@ impl Delaunay {
                 self.create_edge(v, v_prev, EdgeKind::Descend);
                 v_prev_prev = v_prev;
                 v_prev = v;
-                i = i_next;
+                advance!();
                 i_next = next_i(i, len);
                 while cross_product_sign_t(self.pt(v_prev), path[i], path[i_next]) == 0 {
-                    i = i_next;
+                    advance!();
                     i_next = next_i(i, len);
                 }
             }

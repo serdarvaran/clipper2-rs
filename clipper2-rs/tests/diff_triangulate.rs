@@ -135,3 +135,57 @@ fn non_terminating_input_is_reported_as_degenerate() {
         Err(TriangulateError::Degenerate)
     );
 }
+
+/// Here the walk overshoots i0 inside the ascending bound and never leaves it, so a check at
+/// the top of the outer loop alone does not stop it.
+#[test]
+fn walk_stuck_in_ascending_bound_is_reported_as_degenerate() {
+    let paths = vec![
+        p(&[(1, 3), (3, 0), (1, 3), (3, 3), (1, 1), (3, 3)]),
+        p(&[(1, 0), (2, 1), (1, 3), (3, 1), (0, 3)]),
+        p(&[
+            (2, 4),
+            (4, 4),
+            (1, 1),
+            (2, 1),
+            (0, 2),
+            (2, 3),
+            (2, 2),
+            (4, 4),
+            (1, 3),
+            (2, 2),
+        ]),
+    ];
+    for delaunay in [false, true] {
+        assert_eq!(
+            triangulate(&paths, delaunay),
+            Err(TriangulateError::Degenerate)
+        );
+    }
+}
+
+/// Tiny random polygons are mostly self-intersecting; about 4% of them never terminate upstream.
+#[test]
+fn tiny_self_intersecting_paths_match_reference() {
+    let mut degenerate = 0;
+    for seed in 0..cases() as u64 {
+        let mut rng = Rng::new(seed * 7_919 + 5);
+        let range = 4 + rng.below(40);
+        let path_count = 1 + rng.below(3);
+        let paths: Paths64 = (0..path_count)
+            .map(|_| {
+                let len = 3 + rng.below(14);
+                (0..len)
+                    .map(|_| Point64::new(rng.below(range) as i64, rng.below(range) as i64))
+                    .collect()
+            })
+            .collect();
+        for delaunay in [false, true] {
+            if triangulate(&paths, delaunay) == Err(TriangulateError::Degenerate) {
+                degenerate += 1;
+            }
+            compare(&format!("tri-tiny-{seed}-{delaunay}"), &paths, delaunay);
+        }
+    }
+    assert!(degenerate > 0, "no degenerate walk exercised");
+}
