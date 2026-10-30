@@ -47,6 +47,36 @@ impl ClipperBase {
             self.split(e2, pt);
         }
 
+        if self.polytype(e1) == self.polytype(e2) {
+            if self.fillrule == FillRule::EvenOdd {
+                let w1 = self.e(e1).wind_cnt;
+                let w2 = self.e(e2).wind_cnt;
+                self.em(e1).wind_cnt = w2;
+                self.em(e2).wind_cnt = w1;
+            } else {
+                let (a, b) = (*self.e(e1), *self.e(e2));
+                self.em(e1).wind_cnt = if a.wind_cnt + b.wind_dx == 0 {
+                    -a.wind_cnt
+                } else {
+                    a.wind_cnt + b.wind_dx
+                };
+                self.em(e2).wind_cnt = if b.wind_cnt - a.wind_dx == 0 {
+                    -b.wind_cnt
+                } else {
+                    b.wind_cnt - a.wind_dx
+                };
+            }
+        } else if self.fillrule != FillRule::EvenOdd {
+            let (d1, d2) = (self.e(e1).wind_dx, self.e(e2).wind_dx);
+            self.em(e1).wind_cnt2 += d2;
+            self.em(e2).wind_cnt2 -= d1;
+        } else {
+            let a = self.em(e1);
+            a.wind_cnt2 = if a.wind_cnt2 == 0 { 1 } else { 0 };
+            let b = self.em(e2);
+            b.wind_cnt2 = if b.wind_cnt2 == 0 { 1 } else { 0 };
+        }
+
         let (w1, w2) = (self.e(e1).wind_cnt, self.e(e2).wind_cnt);
         let (old_e1_windcnt, old_e2_windcnt) = match self.fillrule {
             FillRule::EvenOdd | FillRule::NonZero => (w1.abs(), w2.abs()),
