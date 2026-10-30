@@ -1,8 +1,10 @@
 //! Pure Rust port of [Clipper2](https://github.com/AngusJohnson/Clipper2) 2.0.1 by Angus Johnson.
 #![forbid(unsafe_code)]
 
-#[allow(dead_code)] // TEMP: internal helpers are consumed by the engine tasks; removed in task 16
+#[allow(dead_code)] // TEMP: internal helpers are consumed by later tasks; removed in task 16
 mod core;
+mod engine;
+mod polytree;
 
 pub use crate::core::{
     ClipType, ClipperError, Coord, FillRule, MAX_COORD, MAX_DECIMAL_PRECISION, MIN_COORD, Path,
@@ -12,3 +14,7 @@ pub use crate::core::{
     strip_duplicates, strip_duplicates_paths, strip_near_equal, strip_near_equal_paths,
     transform_path, transform_paths,
 };
+#[cfg(feature = "usingz")]
+pub use engine::ZCallback64;
+pub use engine::{Clipper64, PathType, ReuseableDataContainer64, Solution};
+pub use polytree::{PolyNode, PolyNode64, PolyNodeD, PolyTree, PolyTree64, PolyTreeD};
