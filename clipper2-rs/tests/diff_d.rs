@@ -144,7 +144,11 @@ fn precision_and_scaled_range_are_checked() {
         c.add_subject(&far).err(),
         Some(ClipperError::CoordinateOutOfRange)
     );
-    assert!(clipper2_ref::boolean_d(2, 1, 2, true, false, &to_ref_d(&far), &[], &[]).is_err());
+    // Upstream's DoError throws only where the compiler reports C++ exceptions
+    // (`__cpp_exceptions`); the MSVC build of the reference returns no error here.
+    if cfg!(not(target_env = "msvc")) {
+        assert!(clipper2_ref::boolean_d(2, 1, 2, true, false, &to_ref_d(&far), &[], &[]).is_err());
+    }
 }
 
 #[test]

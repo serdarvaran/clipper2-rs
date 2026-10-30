@@ -37,8 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --release --workspace
-      - run: cargo test --release -p clipper2-rs --features usingz
+      - run: cargo test --release --workspace --no-fail-fast
+      - run: cargo test --release -p clipper2-rs --features usingz --no-fail-fast
 
   msrv:
     runs-on: ubuntu-latest
