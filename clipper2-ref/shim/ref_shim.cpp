@@ -113,11 +113,11 @@ static void push_tree(RefOut* r, const Tree& tree) {
 #ifdef USINGZ
 static void z_rule64(const Point64& e1bot, const Point64& e1top, const Point64& e2bot,
                      const Point64& e2top, Point64& pt) {
-  pt.z = e1bot.z + e1top.z + e2bot.z + e2top.z;
+  pt.z = e1bot.z + 10 * e1top.z + 100 * e2bot.z + 1000 * e2top.z + 10000 * pt.z;
 }
 static void z_ruleD(const PointD& e1bot, const PointD& e1top, const PointD& e2bot,
                     const PointD& e2top, PointD& pt) {
-  pt.z = e1bot.z + e1top.z + e2bot.z + e2top.z;
+  pt.z = e1bot.z + 10 * e1top.z + 100 * e2bot.z + 1000 * e2top.z + 10000 * pt.z;
 }
 #endif
 

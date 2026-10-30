@@ -2,7 +2,9 @@
 //!
 //! Every function mirrors one upstream API and takes Clipper2's own enum codes
 //! (`ClipType::Intersection = 1`, `FillRule::NonZero = 1`, ...). The `z` module is the
-//! `USINGZ` build, whose Z callback sets `z = e1bot.z + e1top.z + e2bot.z + e2top.z`.
+//! `USINGZ` build, whose Z callback sets
+//! `z = e1bot.z + 10 e1top.z + 100 e2bot.z + 1000 e2top.z + 10000 z` (asymmetric, and it reads
+//! the z the engine seeded, so ordering mistakes show up).
 
 #![allow(clippy::too_many_arguments)] // mirrors the upstream signatures
 
@@ -778,8 +780,8 @@ mod tests {
         let out = z::boolean(2, 1, false, false, &[a], &[], &[b]).unwrap();
         let path = &out.closed[0];
         let at = |x, y| path.iter().find(|p| p.0 == x && p.1 == y).map(|p| p.2);
-        assert_eq!(at(10, 5), Some(22));
-        assert_eq!(at(5, 10), Some(22));
+        assert_eq!(at(10, 5), Some(11_011));
+        assert_eq!(at(5, 10), Some(11_011));
         assert_eq!(at(0, 0), Some(1));
     }
 }

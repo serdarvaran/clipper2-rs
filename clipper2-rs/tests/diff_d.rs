@@ -16,6 +16,14 @@ const FILL_RULES: [FillRule; 4] = [
     FillRule::Positive,
     FillRule::Negative,
 ];
+type RunResult = Result<
+    (
+        Option<clipper2_rs::SolutionD>,
+        Option<(clipper2_rs::PolyTreeD, PathsD)>,
+    ),
+    ClipperError,
+>;
+
 const PRECISIONS: [i32; 5] = [-2, 0, 2, 4, 8];
 
 fn compare_d(
@@ -35,13 +43,7 @@ fn compare_d(
         to_ref_d(open),
         to_ref_d(clip)
     );
-    let run = |tree: bool| -> Result<
-        (
-            Option<clipper2_rs::SolutionD>,
-            Option<(clipper2_rs::PolyTreeD, PathsD)>,
-        ),
-        ClipperError,
-    > {
+    let run = |tree: bool| -> RunResult {
         let mut c = ClipperD::new(precision)?;
         c.set_preserve_collinear(pc);
         c.set_reverse_solution(rev);
@@ -161,4 +163,26 @@ fn union_of_unit_squares_in_floating_point() {
     let s = c.execute(ClipType::Union, FillRule::NonZero).unwrap();
     assert_eq!(s.closed.len(), 1);
     assert_eq!(clipper2_rs::area(&s.closed[0]).abs(), 1.75);
+}
+
+/// Upstream 2.0.1 (and main as of Feb 2026) recurses forever in `CheckSplitOwner` when
+/// disposed split records form a cycle; found by this suite (Xor, EvenOdd, precision -2, seed 460).
+#[test]
+fn split_owner_cycle_does_not_overflow() {
+    let (ct, fr, precision, seed) = (ClipType::Xor, FillRule::EvenOdd, -2i32, 460u64);
+    let mut rng =
+        Rng::new(seed * 7_368_787 + ct as u64 * 5 + fr as u64 + (precision + 10) as u64 * 101);
+    let subject = random_paths_d(&mut rng, Shape::Medium, 2);
+    let clip = random_paths_d(&mut rng, Shape::Medium, 2);
+    compare_d(
+        "split-owner-cycle",
+        ct,
+        fr,
+        precision,
+        false,
+        false,
+        &subject,
+        &vec![],
+        &clip,
+    );
 }

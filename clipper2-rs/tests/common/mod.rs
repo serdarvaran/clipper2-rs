@@ -385,7 +385,9 @@ pub fn assert_paths_d_eq(
     assert_same(case, input, &bits_d(&to_ref_d(ours)), &bits_d(reference));
 }
 
-pub fn flatten_tree_d(tree: &clipper2_rs::PolyTreeD) -> Vec<(Vec<(u64, u64)>, i32, bool)> {
+pub type FlatNodeD = (Vec<(u64, u64)>, i32, bool);
+
+pub fn flatten_tree_d(tree: &clipper2_rs::PolyTreeD) -> Vec<FlatNodeD> {
     let order = tree.dfs();
     let mut pos = vec![0i32; tree.len()];
     for (k, &id) in order.iter().enumerate() {
@@ -407,7 +409,7 @@ pub fn flatten_tree_d(tree: &clipper2_rs::PolyTreeD) -> Vec<(Vec<(u64, u64)>, i3
         .collect()
 }
 
-pub fn ref_tree_nodes_d(t: &clipper2_ref::RefTreeD) -> Vec<(Vec<(u64, u64)>, i32, bool)> {
+pub fn ref_tree_nodes_d(t: &clipper2_ref::RefTreeD) -> Vec<FlatNodeD> {
     t.nodes
         .iter()
         .map(|n| {

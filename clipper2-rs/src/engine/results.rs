@@ -94,8 +94,11 @@ impl ClipperBase {
     fn check_split_owner(&mut self, outrec: Idx, splits: &[Idx]) -> bool {
         for &s in splits {
             let mut split = s;
-            if self.or(split).pts == NONE {
+            // Upstream recurses here without a guard and never returns when disposed splits
+            // form a cycle; marking them like real splits breaks the cycle (see README).
+            if self.or(split).pts == NONE && self.or(split).recursive_split != outrec {
                 if let Some(inner) = self.or(split).splits.clone() {
+                    self.orm(split).recursive_split = outrec;
                     if self.check_split_owner(outrec, &inner) {
                         return true; // #942
                     }

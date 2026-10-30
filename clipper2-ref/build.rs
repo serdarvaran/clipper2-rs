@@ -15,6 +15,11 @@ const UNSTABLE_SORT: &str =
 const STABLE_SORT: &str =
     "std::stable_sort(intersect_nodes_.begin(), intersect_nodes_.end(), IntersectListSort);";
 
+// The second: upstream's CheckSplitOwner recurses into disposed splits without the
+// `recursive_split` guard it uses for real ones, and overflows the stack when they form a cycle.
+const UNGUARDED_SPLIT: &str = "      if (!split->pts && split->splits &&\n        CheckSplitOwner(outrec, split->splits)) return true; //#942";
+const GUARDED_SPLIT: &str = "      if (!split->pts && split->splits && split->recursive_split != outrec) {\n        split->recursive_split = outrec;\n        if (CheckSplitOwner(outrec, split->splits)) return true; //#942\n      }";
+
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let lib = manifest.join("../upstream/Clipper2-2.0.1/CPP/Clipper2Lib");
@@ -30,6 +35,11 @@ fn main() {
                 "upstream intersect sort not found"
             );
             text = text.replace(UNSTABLE_SORT, STABLE_SORT);
+            assert!(
+                text.contains(UNGUARDED_SPLIT),
+                "upstream CheckSplitOwner not found"
+            );
+            text = text.replace(UNGUARDED_SPLIT, GUARDED_SPLIT);
         }
         let path = out.join(name);
         fs::write(&path, text).unwrap();
