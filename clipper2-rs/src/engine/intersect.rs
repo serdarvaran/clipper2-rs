@@ -304,7 +304,9 @@ impl ClipperBase {
         if self.actives == NONE || self.links.next_ael[self.actives as usize] == NONE {
             return false;
         }
-        self.adjust_curr_x_and_copy_to_sel(top_y);
+        if self.adjust_curr_x_and_copy_to_sel(top_y) {
+            return false;
+        }
         let mut left = self.sel;
         while left != NONE && self.links.jump[left as usize] != NONE {
             let mut prev_base = NONE;
