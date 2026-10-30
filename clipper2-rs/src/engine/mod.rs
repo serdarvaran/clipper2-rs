@@ -42,6 +42,7 @@ pub(crate) struct ClipperBase {
     horz_seg_list: Vec<HorzSegment>,
     horz_join_list: Vec<HorzJoin>,
     edges: Vec<Active>,
+    links: Links,
     outpts: Vec<OutPt>,
     outrecs: Vec<OutRec>,
     pub(crate) preserve_collinear: bool,
@@ -74,6 +75,7 @@ impl Default for ClipperBase {
             horz_seg_list: Vec::new(),
             horz_join_list: Vec::new(),
             edges: Vec::new(),
+            links: Links::default(),
             outpts: Vec::new(),
             outrecs: Vec::new(),
             preserve_collinear: true,
@@ -95,6 +97,7 @@ impl ClipperBase {
         self.actives = NONE;
         self.sel = NONE;
         self.edges.clear();
+        self.links.clear();
         self.scanline.clear();
         self.intersect_nodes.clear();
         self.outpts.clear();

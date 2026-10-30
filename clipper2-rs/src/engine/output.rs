@@ -570,12 +570,12 @@ impl ClipperBase {
 
     pub(crate) fn split(&mut self, e: Idx, pt: Point64) {
         if self.e(e).join_with == JoinWith::Right {
-            let next = self.e(e).next_in_ael;
+            let next = self.links.next_ael[e as usize];
             self.em(e).join_with = JoinWith::NoJoin;
             self.em(next).join_with = JoinWith::NoJoin;
             self.add_local_min_poly(e, next, pt, true);
         } else {
-            let prev = self.e(e).prev_in_ael;
+            let prev = self.links.prev_ael[e as usize];
             self.em(e).join_with = JoinWith::NoJoin;
             self.em(prev).join_with = JoinWith::NoJoin;
             self.add_local_min_poly(prev, e, pt, true);
@@ -583,7 +583,7 @@ impl ClipperBase {
     }
 
     pub(crate) fn check_join_left(&mut self, e: Idx, pt: Point64, check_curr_x: bool) {
-        let prev = self.e(e).prev_in_ael;
+        let prev = self.links.prev_ael[e as usize];
         if prev == NONE
             || !self.is_hot(e)
             || !self.is_hot(prev)
@@ -621,7 +621,7 @@ impl ClipperBase {
     }
 
     pub(crate) fn check_join_right(&mut self, e: Idx, pt: Point64, check_curr_x: bool) {
-        let next = self.e(e).next_in_ael;
+        let next = self.links.next_ael[e as usize];
         if next == NONE
             || !self.is_hot(e)
             || !self.is_hot(next)

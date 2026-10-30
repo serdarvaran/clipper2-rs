@@ -11,24 +11,24 @@ impl ClipperBase {
     fn find_edge_with_matching_loc_min(&self, e: Idx) -> Idx {
         let lm = self.e(e).local_min;
         let bot = self.e(e).bot;
-        let mut result = self.e(e).next_in_ael;
+        let mut result = self.links.next_ael[e as usize];
         while result != NONE {
             if self.e(result).local_min == lm {
                 return result;
             } else if !self.is_horizontal(result) && bot != self.e(result).bot {
                 result = NONE;
             } else {
-                result = self.e(result).next_in_ael;
+                result = self.links.next_ael[result as usize];
             }
         }
-        result = self.e(e).prev_in_ael;
+        result = self.links.prev_ael[e as usize];
         while result != NONE {
             if self.e(result).local_min == lm {
                 return result;
             } else if !self.is_horizontal(result) && bot != self.e(result).bot {
                 return NONE;
             } else {
-                result = self.e(result).prev_in_ael;
+                result = self.links.prev_ael[result as usize];
             }
         }
         result
@@ -279,50 +279,50 @@ impl ClipperBase {
     }
 
     fn extract_from_sel(&mut self, ae: Idx) -> Idx {
-        let res = self.e(ae).next_in_sel;
-        let prev = self.e(ae).prev_in_sel;
+        let res = self.links.next_sel[ae as usize];
+        let prev = self.links.prev_sel[ae as usize];
         if res != NONE {
-            self.em(res).prev_in_sel = prev;
+            self.links.prev_sel[res as usize] = prev;
         }
-        self.em(prev).next_in_sel = res;
+        self.links.next_sel[prev as usize] = res;
         res
     }
 
     fn insert1_before2_in_sel(&mut self, ae1: Idx, ae2: Idx) {
-        let prev = self.e(ae2).prev_in_sel;
-        self.em(ae1).prev_in_sel = prev;
+        let prev = self.links.prev_sel[ae2 as usize];
+        self.links.prev_sel[ae1 as usize] = prev;
         if prev != NONE {
-            self.em(prev).next_in_sel = ae1;
+            self.links.next_sel[prev as usize] = ae1;
         }
-        self.em(ae1).next_in_sel = ae2;
-        self.em(ae2).prev_in_sel = ae1;
+        self.links.next_sel[ae1 as usize] = ae2;
+        self.links.prev_sel[ae2 as usize] = ae1;
     }
 
     /// `BuildIntersectList`: a merge sort of the edges by their x at `top_y`; every swap is
     /// an intersection.
     fn build_intersect_list(&mut self, top_y: i64) -> bool {
-        if self.actives == NONE || self.e(self.actives).next_in_ael == NONE {
+        if self.actives == NONE || self.links.next_ael[self.actives as usize] == NONE {
             return false;
         }
         self.adjust_curr_x_and_copy_to_sel(top_y);
         let mut left = self.sel;
-        while left != NONE && self.e(left).jump != NONE {
+        while left != NONE && self.links.jump[left as usize] != NONE {
             let mut prev_base = NONE;
-            while left != NONE && self.e(left).jump != NONE {
+            while left != NONE && self.links.jump[left as usize] != NONE {
                 let mut curr_base = left;
-                let mut right = self.e(left).jump;
+                let mut right = self.links.jump[left as usize];
                 let mut l_end = right;
-                let r_end = self.e(right).jump;
-                self.em(left).jump = r_end;
+                let r_end = self.links.jump[right as usize];
+                self.links.jump[left as usize] = r_end;
                 while left != l_end && right != r_end {
                     if self.e(right).curr_x < self.e(left).curr_x {
-                        let mut tmp = self.e(right).prev_in_sel;
+                        let mut tmp = self.links.prev_sel[right as usize];
                         loop {
                             self.add_new_intersect_node(tmp, right, top_y);
                             if tmp == left {
                                 break;
                             }
-                            tmp = self.e(tmp).prev_in_sel;
+                            tmp = self.links.prev_sel[tmp as usize];
                         }
                         tmp = right;
                         right = self.extract_from_sel(tmp);
@@ -330,15 +330,15 @@ impl ClipperBase {
                         self.insert1_before2_in_sel(tmp, left);
                         if left == curr_base {
                             curr_base = tmp;
-                            self.em(curr_base).jump = r_end;
+                            self.links.jump[curr_base as usize] = r_end;
                             if prev_base == NONE {
                                 self.sel = curr_base;
                             } else {
-                                self.em(prev_base).jump = curr_base;
+                                self.links.jump[prev_base as usize] = curr_base;
                             }
                         }
                     } else {
-                        left = self.e(left).next_in_sel;
+                        left = self.links.next_sel[left as usize];
                     }
                 }
                 prev_base = curr_base;
@@ -350,7 +350,8 @@ impl ClipperBase {
     }
 
     fn edges_adjacent_in_ael(&self, node: &IntersectNode) -> bool {
-        self.e(node.edge1).next_in_ael == node.edge2 || self.e(node.edge1).prev_in_ael == node.edge2
+        self.links.next_ael[node.edge1 as usize] == node.edge2
+            || self.links.prev_ael[node.edge1 as usize] == node.edge2
     }
 
     fn process_intersect_list(&mut self) {

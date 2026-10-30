@@ -48,12 +48,12 @@ impl ClipperBase {
 
     pub(crate) fn get_maxima_pair(&self, e: Idx) -> Idx {
         let vt = self.e(e).vertex_top;
-        let mut e2 = self.e(e).next_in_ael;
+        let mut e2 = self.links.next_ael[e as usize];
         while e2 != NONE {
             if self.e(e2).vertex_top == vt {
                 return e2;
             }
-            e2 = self.e(e2).next_in_ael;
+            e2 = self.links.next_ael[e2 as usize];
         }
         NONE
     }
@@ -83,9 +83,9 @@ impl ClipperBase {
     fn reset_horz_direction(&self, horz: Idx, max_vertex: Idx) -> (bool, i64, i64) {
         let h = self.e(horz);
         if h.bot.x == h.top.x {
-            let mut e = h.next_in_ael;
+            let mut e = self.links.next_ael[horz as usize];
             while e != NONE && self.e(e).vertex_top != max_vertex {
-                e = self.e(e).next_in_ael;
+                e = self.links.next_ael[e as usize];
             }
             (e != NONE, h.curr_x, h.curr_x)
         } else if h.curr_x < h.top.x {
@@ -116,9 +116,9 @@ impl ClipperBase {
 
         loop {
             let mut e = if is_left_to_right {
-                self.e(horz).next_in_ael
+                self.links.next_ael[horz as usize]
             } else {
-                self.e(horz).prev_in_ael
+                self.links.prev_ael[horz as usize]
             };
             while e != NONE {
                 if self.e(e).vertex_top == vertex_max {
@@ -181,13 +181,13 @@ impl ClipperBase {
                     self.swap_positions_in_ael(horz, e);
                     self.check_join_left(e, pt, false);
                     self.em(horz).curr_x = self.e(e).curr_x;
-                    e = self.e(horz).next_in_ael;
+                    e = self.links.next_ael[horz as usize];
                 } else {
                     self.intersect_edges(e, horz, pt);
                     self.swap_positions_in_ael(e, horz);
                     self.check_join_right(e, pt, false);
                     self.em(horz).curr_x = self.e(e).curr_x;
-                    e = self.e(horz).prev_in_ael;
+                    e = self.links.prev_ael[horz as usize];
                 }
                 if self.e(horz).outrec != NONE {
                     let op = self.get_last_op(horz);

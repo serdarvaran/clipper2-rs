@@ -72,13 +72,13 @@ impl ClipperBase {
                 let x = top_x(self.e(e), y);
                 self.em(e).curr_x = x;
             }
-            e = self.e(e).next_in_ael;
+            e = self.links.next_ael[e as usize];
         }
     }
 
     fn do_maxima(&mut self, e: Idx) -> Idx {
-        let prev_e = self.e(e).prev_in_ael;
-        let mut next_e = self.e(e).next_in_ael;
+        let prev_e = self.links.prev_ael[e as usize];
+        let mut next_e = self.links.next_ael[e as usize];
         if self.is_open_end(e) {
             if self.is_hot(e) {
                 let top = self.e(e).top;
@@ -114,7 +114,7 @@ impl ClipperBase {
             let top = self.e(e).top;
             self.intersect_edges(e, next_e, top);
             self.swap_positions_in_ael(e, next_e);
-            next_e = self.e(e).next_in_ael;
+            next_e = self.links.next_ael[e as usize];
         }
         let top = self.e(e).top;
         if self.is_open(e) {
@@ -131,7 +131,7 @@ impl ClipperBase {
             self.delete_from_ael(max_pair);
         }
         if prev_e != NONE {
-            self.e(prev_e).next_in_ael
+            self.links.next_ael[prev_e as usize]
         } else {
             self.actives
         }

@@ -64,6 +64,44 @@ pub(crate) struct OutRec {
     pub is_open: bool,
 }
 
+/// The AEL/SEL links of every edge, one array per link: following a link is then a single
+/// scaled load, as with upstream's pointers (through `Active` it also needs a multiply, which
+/// made the list walks ~2x slower).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Links {
+    pub prev_ael: Vec<Idx>,
+    pub next_ael: Vec<Idx>,
+    pub prev_sel: Vec<Idx>,
+    pub next_sel: Vec<Idx>,
+    pub jump: Vec<Idx>,
+}
+
+impl Links {
+    pub fn push_unlinked(&mut self) {
+        for v in [
+            &mut self.prev_ael,
+            &mut self.next_ael,
+            &mut self.prev_sel,
+            &mut self.next_sel,
+            &mut self.jump,
+        ] {
+            v.push(NONE);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        for v in [
+            &mut self.prev_ael,
+            &mut self.next_ael,
+            &mut self.prev_sel,
+            &mut self.next_sel,
+            &mut self.jump,
+        ] {
+            v.clear();
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Active {
     pub bot: Point64,
@@ -74,11 +112,6 @@ pub(crate) struct Active {
     pub wind_cnt: i32,
     pub wind_cnt2: i32,
     pub outrec: Idx,
-    pub prev_in_ael: Idx,
-    pub next_in_ael: Idx,
-    pub prev_in_sel: Idx,
-    pub next_in_sel: Idx,
-    pub jump: Idx,
     pub vertex_top: Idx,
     pub local_min: Idx,
     pub is_left_bound: bool,
@@ -96,11 +129,6 @@ impl Default for Active {
             wind_cnt: 0,
             wind_cnt2: 0,
             outrec: NONE,
-            prev_in_ael: NONE,
-            next_in_ael: NONE,
-            prev_in_sel: NONE,
-            next_in_sel: NONE,
-            jump: NONE,
             vertex_top: NONE,
             local_min: NONE,
             is_left_bound: false,

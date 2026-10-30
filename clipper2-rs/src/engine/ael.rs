@@ -54,9 +54,9 @@ impl ClipperBase {
     }
 
     pub(crate) fn get_prev_hot_edge(&self, e: Idx) -> Idx {
-        let mut prev = self.e(e).prev_in_ael;
+        let mut prev = self.links.prev_ael[e as usize];
         while prev != NONE && (self.is_open(prev) || !self.is_hot(prev)) {
-            prev = self.e(prev).prev_in_ael;
+            prev = self.links.prev_ael[prev as usize];
         }
         prev
     }
@@ -124,10 +124,10 @@ impl ClipperBase {
     }
 
     pub(crate) fn set_wind_count_for_closed_path_edge(&mut self, e: Idx) {
-        let mut e2 = self.e(e).prev_in_ael;
+        let mut e2 = self.links.prev_ael[e as usize];
         let pt = self.polytype(e);
         while e2 != NONE && (self.polytype(e2) != pt || self.is_open(e2)) {
-            e2 = self.e(e2).prev_in_ael;
+            e2 = self.links.prev_ael[e2 as usize];
         }
         if e2 == NONE {
             let wd = self.e(e).wind_dx;
@@ -138,7 +138,7 @@ impl ClipperBase {
             let a = self.em(e);
             a.wind_cnt = wd;
             a.wind_cnt2 = wc2;
-            e2 = self.e(e2).next_in_ael;
+            e2 = self.links.next_ael[e2 as usize];
         } else {
             let b = *self.e(e2);
             let wind_dx = self.e(e).wind_dx;
@@ -163,7 +163,7 @@ impl ClipperBase {
             let a = self.em(e);
             a.wind_cnt = wc;
             a.wind_cnt2 = b.wind_cnt2;
-            e2 = b.next_in_ael;
+            e2 = self.links.next_ael[e2 as usize];
         }
         if self.fillrule == FillRule::EvenOdd {
             while e2 != e {
@@ -171,7 +171,7 @@ impl ClipperBase {
                     let a = self.em(e);
                     a.wind_cnt2 = if a.wind_cnt2 == 0 { 1 } else { 0 };
                 }
-                e2 = self.e(e2).next_in_ael;
+                e2 = self.links.next_ael[e2 as usize];
             }
         } else {
             while e2 != e {
@@ -179,7 +179,7 @@ impl ClipperBase {
                     let d = self.e(e2).wind_dx;
                     self.em(e).wind_cnt2 += d;
                 }
-                e2 = self.e(e2).next_in_ael;
+                e2 = self.links.next_ael[e2 as usize];
             }
         }
     }
@@ -194,7 +194,7 @@ impl ClipperBase {
                 } else if !self.is_open(e2) {
                     cnt1 += 1;
                 }
-                e2 = self.e(e2).next_in_ael;
+                e2 = self.links.next_ael[e2 as usize];
             }
             let a = self.em(e);
             a.wind_cnt = if cnt1 & 1 == 1 { 1 } else { 0 };
@@ -207,7 +207,7 @@ impl ClipperBase {
                 } else if !self.is_open(e2) {
                     self.em(e).wind_cnt += d;
                 }
-                e2 = self.e(e2).next_in_ael;
+                e2 = self.links.next_ael[e2 as usize];
             }
         }
     }
@@ -247,48 +247,46 @@ impl ClipperBase {
 
     pub(crate) fn insert_left_edge(&mut self, e: Idx) {
         if self.actives == NONE {
-            let a = self.em(e);
-            a.prev_in_ael = NONE;
-            a.next_in_ael = NONE;
+            self.links.prev_ael[e as usize] = NONE;
+            self.links.next_ael[e as usize] = NONE;
             self.actives = e;
         } else if !self.is_valid_ael_order(self.actives, e) {
             let first = self.actives;
-            let a = self.em(e);
-            a.prev_in_ael = NONE;
-            a.next_in_ael = first;
-            self.em(first).prev_in_ael = e;
+            self.links.prev_ael[e as usize] = NONE;
+            self.links.next_ael[e as usize] = first;
+            self.links.prev_ael[first as usize] = e;
             self.actives = e;
         } else {
             let mut e2 = self.actives;
-            while self.e(e2).next_in_ael != NONE
-                && self.is_valid_ael_order(self.e(e2).next_in_ael, e)
+            while self.links.next_ael[e2 as usize] != NONE
+                && self.is_valid_ael_order(self.links.next_ael[e2 as usize], e)
             {
-                e2 = self.e(e2).next_in_ael;
+                e2 = self.links.next_ael[e2 as usize];
             }
             if self.e(e2).join_with == JoinWith::Right {
-                e2 = self.e(e2).next_in_ael;
+                e2 = self.links.next_ael[e2 as usize];
             }
             if e2 == NONE {
                 return;
             }
-            let next = self.e(e2).next_in_ael;
-            self.em(e).next_in_ael = next;
+            let next = self.links.next_ael[e2 as usize];
+            self.links.next_ael[e as usize] = next;
             if next != NONE {
-                self.em(next).prev_in_ael = e;
+                self.links.prev_ael[next as usize] = e;
             }
-            self.em(e).prev_in_ael = e2;
-            self.em(e2).next_in_ael = e;
+            self.links.prev_ael[e as usize] = e2;
+            self.links.next_ael[e2 as usize] = e;
         }
     }
 
     pub(crate) fn insert_right_edge(&mut self, e: Idx, e2: Idx) {
-        let next = self.e(e).next_in_ael;
-        self.em(e2).next_in_ael = next;
+        let next = self.links.next_ael[e as usize];
+        self.links.next_ael[e2 as usize] = next;
         if next != NONE {
-            self.em(next).prev_in_ael = e2;
+            self.links.prev_ael[next as usize] = e2;
         }
-        self.em(e2).prev_in_ael = e;
-        self.em(e).next_in_ael = e2;
+        self.links.prev_ael[e2 as usize] = e;
+        self.links.next_ael[e as usize] = e2;
     }
 
     fn new_bound(&mut self, lm: Idx, wind_dx: i32) -> Idx {
@@ -310,6 +308,7 @@ impl ClipperBase {
         };
         a.dx = get_dx(a.bot, a.top);
         self.edges.push(a);
+        self.links.push_unlinked();
         (self.edges.len() - 1) as Idx
     }
 
@@ -368,10 +367,11 @@ impl ClipperBase {
                         self.check_join_left(left_bound, bot, false);
                     }
                 }
-                while self.e(right_bound).next_in_ael != NONE
-                    && self.is_valid_ael_order(self.e(right_bound).next_in_ael, right_bound)
+                while self.links.next_ael[right_bound as usize] != NONE
+                    && self
+                        .is_valid_ael_order(self.links.next_ael[right_bound as usize], right_bound)
                 {
-                    let next = self.e(right_bound).next_in_ael;
+                    let next = self.links.next_ael[right_bound as usize];
                     let bot = self.e(right_bound).bot;
                     self.intersect_edges(right_bound, next, bot);
                     self.swap_positions_in_ael(right_bound, next);
@@ -401,7 +401,7 @@ impl ClipperBase {
     #[inline]
     pub(crate) fn push_horz(&mut self, e: Idx) {
         let sel = self.sel;
-        self.em(e).next_in_sel = sel;
+        self.links.next_sel[e as usize] = sel;
         self.sel = e;
     }
 
@@ -411,45 +411,45 @@ impl ClipperBase {
         if e == NONE {
             return None;
         }
-        self.sel = self.e(e).next_in_sel;
+        self.sel = self.links.next_sel[e as usize];
         Some(e)
     }
 
     /// `DeleteFromAEL`. The record stays in the arena with both links cleared, which is how
     /// a second call recognises an already deleted edge.
     pub(crate) fn delete_from_ael(&mut self, e: Idx) {
-        let (prev, next) = (self.e(e).prev_in_ael, self.e(e).next_in_ael);
+        let (prev, next) = (
+            self.links.prev_ael[e as usize],
+            self.links.next_ael[e as usize],
+        );
         if prev == NONE && next == NONE && e != self.actives {
             return;
         }
         if prev != NONE {
-            self.em(prev).next_in_ael = next;
+            self.links.next_ael[prev as usize] = next;
         } else {
             self.actives = next;
         }
         if next != NONE {
-            self.em(next).prev_in_ael = prev;
+            self.links.prev_ael[next as usize] = prev;
         }
-        let a = self.em(e);
-        a.prev_in_ael = NONE;
-        a.next_in_ael = NONE;
+        self.links.prev_ael[e as usize] = NONE;
+        self.links.next_ael[e as usize] = NONE;
     }
 
     pub(crate) fn swap_positions_in_ael(&mut self, e1: Idx, e2: Idx) {
-        let next = self.e(e2).next_in_ael;
+        let next = self.links.next_ael[e2 as usize];
         if next != NONE {
-            self.em(next).prev_in_ael = e1;
+            self.links.prev_ael[next as usize] = e1;
         }
-        let prev = self.e(e1).prev_in_ael;
+        let prev = self.links.prev_ael[e1 as usize];
         if prev != NONE {
-            self.em(prev).next_in_ael = e2;
+            self.links.next_ael[prev as usize] = e2;
         }
-        let b = self.em(e2);
-        b.prev_in_ael = prev;
-        b.next_in_ael = e1;
-        let a = self.em(e1);
-        a.prev_in_ael = e2;
-        a.next_in_ael = next;
+        self.links.prev_ael[e2 as usize] = prev;
+        self.links.next_ael[e2 as usize] = e1;
+        self.links.prev_ael[e1 as usize] = e2;
+        self.links.next_ael[e1 as usize] = next;
         if prev == NONE {
             self.actives = e2;
         }
@@ -504,15 +504,18 @@ impl ClipperBase {
     }
 
     pub(crate) fn adjust_curr_x_and_copy_to_sel(&mut self, top_y: i64) {
+        let (edges, links) = (&mut self.edges[..], &mut self.links);
         let mut e = self.actives;
         self.sel = e;
         while e != NONE {
-            let a = self.em(e);
-            a.prev_in_sel = a.prev_in_ael;
-            a.next_in_sel = a.next_in_ael;
-            a.jump = a.next_in_sel;
+            let i = e as usize;
+            let next = links.next_ael[i];
+            links.prev_sel[i] = links.prev_ael[i];
+            links.next_sel[i] = next;
+            links.jump[i] = next;
+            let a = &mut edges[i];
             a.curr_x = top_x(a, top_y);
-            e = a.next_in_ael;
+            e = next;
         }
     }
 }
