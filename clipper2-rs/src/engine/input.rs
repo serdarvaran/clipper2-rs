@@ -145,7 +145,9 @@ pub(crate) fn add_paths(
 }
 
 impl ClipperBase {
-    /// `Reset`: sorts the minima (stably, bottom-up then left to right) and queues their y.
+    /// `Reset`: sorts the minima (stably, bottom-up then left to right). Upstream also queues
+    /// every minimum's y; `pop_scanline` reads them from the sorted list instead, which keeps
+    /// the heap small (PolyClipping/Clipper2#2).
     pub(crate) fn reset(&mut self) {
         if !self.minima_list_sorted {
             let vertices = &self.vertices;
@@ -163,10 +165,6 @@ impl ClipperBase {
             });
             self.minima_list_sorted = true;
         }
-        for i in (0..self.minima.len()).rev() {
-            let y = self.vertices[self.minima[i].vertex as usize].pt.y;
-            self.scanline.push(y);
-        }
         self.current_locmin = 0;
         self.actives = NONE;
         self.sel = NONE;
@@ -178,8 +176,16 @@ impl ClipperBase {
         self.scanline.push(y);
     }
 
+    /// The next (lower) scanline: the larger of the heap's top and the next unconsumed minimum.
     pub(crate) fn pop_scanline(&mut self) -> Option<i64> {
-        let y = self.scanline.pop()?;
+        let minimum_y = self
+            .minima
+            .get(self.current_locmin)
+            .map(|lm| self.vertices[lm.vertex as usize].pt.y);
+        let y = match (self.scanline.peek().copied(), minimum_y) {
+            (Some(a), Some(b)) => a.max(b),
+            (a, b) => a.or(b)?,
+        };
         while self.scanline.peek() == Some(&y) {
             self.scanline.pop();
         }
