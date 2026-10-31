@@ -13,7 +13,7 @@ fixes it (see [Triangulation](#triangulation)).
 
 ```toml
 [dependencies]
-clipper2-rs = "0.1"
+clipper2-rs = "0.2"
 ```
 
 ```rust

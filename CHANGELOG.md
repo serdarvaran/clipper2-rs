@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-01)
 
 - Triangulation, which upstream has withdrawn, is maintained here and no longer follows upstream
   bit for bit:
@@ -23,7 +23,9 @@
     contract), the triangles cover it as often; disjoint outer paths of opposite orientation
     are `Fail` (upstream returned a single triangle);
   - known limitation: `Fail` on about 0.1% of degenerate small-grid input (paths running back
-    along themselves or sharing edges) that upstream triangulates.
+    along themselves or sharing edges) that upstream triangulates;
+  - the checks cost time: the triangulation now takes 0.86 (without Delaunay) and 1.00 (with)
+    of the C++ library's time, from 0.68 and 0.87.
 - Upstream fixes made after 2.0.1 (now tracked from
   [PolyClipping/Clipper2](https://github.com/PolyClipping/Clipper2), commit `b496b45`):
   - `FixSelfIntersects` no longer special-cases adjacent micro self-intersections; it splits
