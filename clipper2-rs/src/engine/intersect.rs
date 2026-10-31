@@ -239,6 +239,7 @@ impl ClipperBase {
     }
 
     pub(crate) fn do_intersections(&mut self, top_y: i64) {
+        self.curr_x_at_top = false;
         if self.build_intersect_list(top_y) {
             self.process_intersect_list();
             self.intersect_nodes.clear();
@@ -305,6 +306,7 @@ impl ClipperBase {
             return false;
         }
         if self.adjust_curr_x_and_copy_to_sel(top_y) {
+            self.curr_x_at_top = true;
             return false;
         }
         let mut left = self.sel;

@@ -68,7 +68,7 @@ impl ClipperBase {
                 if self.is_horizontal(e) {
                     self.push_horz(e);
                 }
-            } else {
+            } else if !self.curr_x_at_top {
                 let x = top_x(self.e(e), y);
                 self.em(e).curr_x = x;
             }

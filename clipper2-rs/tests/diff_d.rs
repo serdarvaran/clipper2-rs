@@ -169,8 +169,8 @@ fn union_of_unit_squares_in_floating_point() {
     assert_eq!(clipper2_rs::area(&s.closed[0]).abs(), 1.75);
 }
 
-/// Upstream 2.0.1 (and main as of Feb 2026) recurses forever in `CheckSplitOwner` when
-/// disposed split records form a cycle; found by this suite (Xor, EvenOdd, precision -2, seed 460).
+/// Upstream 2.0.1 recursed forever in `CheckSplitOwner` when disposed split records formed a
+/// cycle (fixed in f97d65d); found by this suite (Xor, EvenOdd, precision -2, seed 460).
 #[test]
 fn split_owner_cycle_does_not_overflow() {
     let (ct, fr, precision, seed) = (ClipType::Xor, FillRule::EvenOdd, -2i32, 460u64);

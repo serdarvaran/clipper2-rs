@@ -1,7 +1,7 @@
 # clipper2-rs
 
 A pure Rust port of [Clipper2](https://github.com/PolyClipping/Clipper2) by Angus Johnson (release 2.0.1
-plus the upstream fixes made since, commit `27a64a6`):
+plus the upstream fixes made since, commit `b496b45`):
 polygon boolean operations (intersection, union, difference, XOR), offsetting, rectangle
 clipping, Minkowski sums and differences, constrained Delaunay triangulation, and optional
 Z values. It has no dependencies and no `unsafe` code (`#![forbid(unsafe_code)]`).
@@ -78,13 +78,6 @@ clipper2-rs is faster.
 | `simplify_paths` | 50,000 points | 0.83 |
 | `triangulate` (with and without Delaunay) | 9,842 points | 0.68, 0.87 |
 
-The boolean engine skips two kinds of work that upstream always does, without changing any
-result:
-- the intersection merge sort when no edges cross in a scanbeam
-  ([PolyClipping/Clipper2#3](https://github.com/PolyClipping/Clipper2/issues/3));
-- queuing every local minimum in the scanline heap
-  ([#2](https://github.com/PolyClipping/Clipper2/issues/2)).
-
 Run the comparison yourself with `cargo bench -p clipper2-rs`.
 
 ## Differences from the C++ library
@@ -98,15 +91,12 @@ Results are identical to upstream except in these cases:
    One upstream test case (`Polygons.txt` #168) depends on this order: libc++ gives 101
    polygons, a stable sort gives 99, and the stored value is 106 ± 5. Only that count is exempt
    in the ported test.
-2. **No stack overflow in `CheckSplitOwner`.** Upstream can recurse forever on some inputs;
-   clipper2-rs guards the recursion. See
-   [PolyClipping/Clipper2#5](https://github.com/PolyClipping/Clipper2/issues/5).
-3. **`triangulate` always terminates.** On some self-intersecting paths, upstream's outline walk
+2. **`triangulate` always terminates.** On some self-intersecting paths, upstream's outline walk
    never ends and keeps allocating memory. clipper2-rs stops that walk after one full lap and
    returns `TriangulateError::Degenerate`. See
    [PolyClipping/Clipper2#6](https://github.com/PolyClipping/Clipper2/issues/6).
 
-4. **Invalid input gives an error instead of undefined behaviour.**
+3. **Invalid input gives an error instead of undefined behaviour.**
    - `Clipper64` and `ClipperOffset` reject integer coordinates outside
      `MIN_COORD..=MAX_COORD` with `ClipperError::CoordinateOutOfRange`. Upstream checks the range
      only when scaling floating-point input.
@@ -134,7 +124,7 @@ clipper2-rs. Libraries should leave the choice to the final application.
 |---|---|
 | `clipper2-rs/` | the published crate |
 | `clipper2-ref/` | test-only C++ reference: the upstream sources, built with `cc` |
-| `upstream/Clipper2/` | upstream sources and test data (commit `27a64a6`) |
+| `upstream/Clipper2/` | upstream sources and test data (commit `b496b45`) |
 | `scripts/memguard.sh` | runs a command and kills it when it exceeds a memory or time limit |
 
 Use `scripts/memguard.sh` for large randomized runs. Upstream's triangulation can exhaust

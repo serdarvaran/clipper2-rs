@@ -405,6 +405,18 @@ fn test_poly_tree_intersection() {
     assert_eq!(solution.node(solution.roots()[0]).polygon.len(), 4);
 }
 
+#[test]
+fn test_poly_tree_cyclic_splits() {
+    // emptied OutRecs whose splits form a cycle used to recurse forever in CheckSplitOwner
+    let clip = vec![mp(&[
+        3, 0, 3, 5, 0, 3, 5, 3, 0, 5, 5, 3, 0, 3, 0, 0, 0, 3, 5, 3, 0, 0, 3, 3, 2, 3,
+    ])];
+    let mut c = Clipper64::new();
+    c.set_preserve_collinear(false);
+    c.add_clip(&clip);
+    assert!(c.execute_tree(ClipType::Xor, FillRule::EvenOdd).is_ok());
+}
+
 // ---- TestPolytreeUnion.cpp ----
 
 #[test]

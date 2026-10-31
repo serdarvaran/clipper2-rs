@@ -30,6 +30,9 @@ pub(crate) struct ClipperBase {
     cliptype: ClipType,
     fillrule: FillRule,
     bot_y: i64,
+    /// Every active edge's `curr_x` is already `top_x(top_y)`. Set by `do_intersections` and
+    /// only valid for the `do_top_of_scanbeam` call that immediately follows it.
+    curr_x_at_top: bool,
     minima_list_sorted: bool,
     using_polytree: bool,
     actives: Idx,
@@ -63,6 +66,7 @@ impl Default for ClipperBase {
             cliptype: ClipType::NoClip,
             fillrule: FillRule::EvenOdd,
             bot_y: 0,
+            curr_x_at_top: false,
             minima_list_sorted: false,
             using_polytree: false,
             actives: NONE,

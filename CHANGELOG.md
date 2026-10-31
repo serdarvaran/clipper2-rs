@@ -3,11 +3,16 @@
 ## Unreleased
 
 - Upstream fixes made after 2.0.1 (now tracked from
-  [PolyClipping/Clipper2](https://github.com/PolyClipping/Clipper2), commit `27a64a6`):
+  [PolyClipping/Clipper2](https://github.com/PolyClipping/Clipper2), commit `b496b45`):
   - `FixSelfIntersects` no longer special-cases adjacent micro self-intersections; it splits
     them like any other (upstream #1067). Some boolean, offset and Minkowski results change.
   - Triangulation ignores segments that share an end point when testing for intersections,
     instead of relying on an exact zero test (upstream #1055, #1056).
+  - `CheckSplitOwner` uses upstream's own recursion guard (f97d65d), which replaces this
+    crate's: an emptied split that was already visited is now skipped entirely. No longer a
+    difference from upstream.
+  - Upstream adopted the two scanline speed-ups this crate already had (PolyClipping #2, #3);
+    `DoTopOfScanbeam` now also reuses the edge positions computed for an unchanged scanbeam.
 
 ## 0.1.0 (2026-10-31)
 

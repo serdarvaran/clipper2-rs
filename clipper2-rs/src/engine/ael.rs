@@ -505,7 +505,7 @@ impl ClipperBase {
 
     /// Returns whether the edges are still in x order at `top_y`. If so, no two of them cross
     /// in this scanbeam and the merge sort in `build_intersect_list` would swap nothing, so it
-    /// can be skipped (upstream always runs it; PolyClipping/Clipper2#3).
+    /// can be skipped.
     pub(crate) fn adjust_curr_x_and_copy_to_sel(&mut self, top_y: i64) -> bool {
         let (edges, links) = (&mut self.edges[..], &mut self.links);
         let mut e = self.actives;

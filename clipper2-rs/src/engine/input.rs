@@ -145,9 +145,8 @@ pub(crate) fn add_paths(
 }
 
 impl ClipperBase {
-    /// `Reset`: sorts the minima (stably, bottom-up then left to right). Upstream also queues
-    /// every minimum's y; `pop_scanline` reads them from the sorted list instead, which keeps
-    /// the heap small (PolyClipping/Clipper2#2).
+    /// `Reset`: sorts the minima (stably, bottom-up then left to right). Their y values are not
+    /// queued; `pop_scanline` reads them from the sorted list instead.
     pub(crate) fn reset(&mut self) {
         if !self.minima_list_sorted {
             let vertices = &self.vertices;
