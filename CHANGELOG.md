@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Triangulation, which upstream has withdrawn, is maintained here and no longer follows upstream
+  bit for bit:
+  - every result is checked to cover the input exactly; `TriangulateError::Fail` is returned
+    instead of a wrong result;
+  - a boundary that crosses itself is an error, normally `TriangulateError::PathsIntersect`,
+    also when edges cross within a unit of an end point (upstream moved the end point, which
+    could give a wrong result);
+  - fixed: an edge from an inner local minimum crossing a polygon edge; a fan closed across a
+    vertex further along the same row (a T-junction); collinear vertices that a touching path
+    shares; triangles with a side of length 1 being dropped; the inner local minimum of a vertex
+    shared by several paths;
+  - clockwise input: upstream's orientation fix flipped a local minimum back when it was queued
+    twice, and took the orientation from the lowest minimum, which can belong to a hole; the
+    total area's sign decides now;
+  - coordinates outside `MIN_COORD..=MAX_COORD` are `TriangulateError::CoordinateOutOfRange`;
+  - paths that run back along themselves or share an edge with another path (after splitting
+    at collinear vertices) have the coinciding edges removed;
+  - where the input winds around a point more than once (overlapping paths, outside the
+    contract), the triangles cover it as often; disjoint outer paths of opposite orientation
+    are `Fail` (upstream returned a single triangle);
+  - known limitation: `Fail` on about 0.1% of degenerate small-grid input (paths running back
+    along themselves or sharing edges) that upstream triangulates.
 - Upstream fixes made after 2.0.1 (now tracked from
   [PolyClipping/Clipper2](https://github.com/PolyClipping/Clipper2), commit `b496b45`):
   - `FixSelfIntersects` no longer special-cases adjacent micro self-intersections; it splits

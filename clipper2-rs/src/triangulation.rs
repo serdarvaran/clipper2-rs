@@ -1,10 +1,13 @@
 //! Constrained (optionally Delaunay) triangulation of non-intersecting polygons
-//! (`clipper.triangulation.cpp`, marked BETA upstream).
+//! (`clipper.triangulation.cpp`). Upstream has withdrawn this code; it is maintained here.
 
+use std::collections::HashMap;
 use std::fmt;
+use std::hash::{BuildHasherDefault, Hasher};
 
 use crate::core::{
-    Path64, Paths64, PathsD, Point64, cross_product_sign_t, distance_sqr, scale_paths, sqr,
+    Path64, Paths64, PathsD, Point64, check_range, cross_product_sign_t, distance_sqr, scale_paths,
+    sqr,
 };
 
 type Idx = u32;
@@ -14,7 +17,8 @@ const NONE: Idx = u32::MAX;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TriangulateError {
-    /// Internal failure (upstream returns `fail` or throws).
+    /// Internal failure (upstream returns `fail` or throws), or a result that would not
+    /// cover the input exactly.
     Fail,
     /// Fewer than three usable vertices.
     NoPolygons,
@@ -96,16 +100,6 @@ fn right_turning(p1: Point64, p2: Point64, p3: Point64) -> bool {
     cross_product_sign_t(p1, p2, p3) > 0
 }
 
-fn get_angle(a: Point64, b: Point64, c: Point64) -> f64 {
-    let abx = b.x.wrapping_sub(a.x) as f64;
-    let aby = b.y.wrapping_sub(a.y) as f64;
-    let bcx = b.x.wrapping_sub(c.x) as f64;
-    let bcy = b.y.wrapping_sub(c.y) as f64;
-    let dp = abx * bcx + aby * bcy;
-    let cp = abx * bcy - aby * bcx;
-    cp.atan2(dp)
-}
-
 fn in_circle_test(pt_a: Point64, pt_b: Point64, pt_c: Point64, pt_d: Point64) -> f64 {
     let m00 = pt_a.x.wrapping_sub(pt_d.x) as f64;
     let m01 = pt_a.y.wrapping_sub(pt_d.y) as f64;
@@ -167,6 +161,41 @@ fn segs_intersect(s1a: Point64, s1b: Point64, s2a: Point64, s2b: Point64) -> Int
     IntersectKind::None
 }
 
+/// For directions pointing up (y <= 0): `> 0` when `b` points further left than `a`.
+fn upward_turn(a: Point64, b: Point64) -> i128 {
+    // with y flipped, both lie in the upper half-plane and "further left" is a larger angle
+    a.x as i128 * -(b.y as i128) - -(a.y as i128) * b.x as i128
+}
+
+fn distance_sqr_exact(a: Point64, b: Point64) -> i128 {
+    let (dx, dy) = ((a.x - b.x) as i128, (a.y - b.y) as i128);
+    dx * dx + dy * dy
+}
+
+/// Whether segment `c`-`d` crosses segment `a`-`b`, or has an end point strictly inside it
+/// (exact).
+fn segment_blocked(a: Point64, b: Point64, c: Point64, d: Point64) -> bool {
+    strictly_inside(c, a, b) || strictly_inside(d, a, b) || segments_cross(a, b, c, d)
+}
+
+/// Whether `p` lies on segment `a`-`b` without being one of its ends (exact).
+fn strictly_inside(p: Point64, a: Point64, b: Point64) -> bool {
+    p != a
+        && p != b
+        && p.x >= a.x.min(b.x)
+        && p.x <= a.x.max(b.x)
+        && p.y >= a.y.min(b.y)
+        && p.y <= a.y.max(b.y)
+        && cross_product_sign_t(a, p, b) == 0
+}
+
+/// Whether segments `a`-`b` and `c`-`d` cross at a point inside both (exact).
+fn segments_cross(a: Point64, b: Point64, c: Point64, d: Point64) -> bool {
+    let (s1, s2) = (cross_product_sign_t(a, b, c), cross_product_sign_t(a, b, d));
+    let (s3, s4) = (cross_product_sign_t(c, d, a), cross_product_sign_t(c, d, b));
+    s1 * s2 < 0 && s3 * s4 < 0
+}
+
 fn find_loc_min_idx(path: &Path64, len: usize, idx: &mut usize) -> bool {
     if len < 3 {
         return false;
@@ -202,14 +231,11 @@ struct Delaunay {
     /// `allVertices`: creation order, later sorted.
     all_vertices: Vec<Idx>,
     edges: Vec<Edge>,
-    /// `allEdges`: creation order, sorted once by left x.
-    all_edges: Vec<Idx>,
     tris: Vec<[Idx; 3]>,
     pending_delaunay: Vec<Idx>,
     horz_edges: Vec<Idx>,
     loc_mins: Vec<Idx>,
     use_delaunay: bool,
-    lowermost: Idx,
     first_active: Idx,
 }
 
@@ -219,13 +245,11 @@ impl Delaunay {
             verts: Vec::new(),
             all_vertices: Vec::new(),
             edges: Vec::new(),
-            all_edges: Vec::new(),
             tris: Vec::new(),
             pending_delaunay: Vec::new(),
             horz_edges: Vec::new(),
             loc_mins: Vec::new(),
             use_delaunay,
-            lowermost: NONE,
             first_active: NONE,
         }
     }
@@ -290,20 +314,6 @@ impl Delaunay {
         } else {
             EdgeContains::Neither
         }
-    }
-
-    fn get_loc_min_angle(&self, v: Idx) -> f64 {
-        let edges = &self.v(v).edges;
-        let (asc, des) = if self.e(edges[0]).kind == EdgeKind::Ascend {
-            (0, 1)
-        } else {
-            (1, 0)
-        };
-        get_angle(
-            self.pt(self.e(edges[des]).v_t),
-            self.pt(v),
-            self.pt(self.e(edges[asc]).v_t),
-        )
     }
 
     fn remove_edge_from_vertex(&mut self, vert: Idx, edge: Idx) -> Result<(), Oops> {
@@ -471,7 +481,6 @@ impl Delaunay {
             next_e: NONE,
             prev_e: NONE,
         });
-        self.all_edges.push(res);
         self.vm(v1).edges.push(res);
         self.vm(v2).edges.push(res);
         if k == EdgeKind::Loose {
@@ -498,78 +507,49 @@ impl Delaunay {
         Ok(res)
     }
 
-    fn remove_intersection(&mut self, e1: Idx, e2: Idx) -> Result<bool, Oops> {
-        let (a, b) = (*self.e(e1), *self.e(e2));
-        let mut v = a.v_l;
-        let mut tmp_e = e2;
-        let mut d = shortest_dist_from_segment(self.pt(a.v_l), self.pt(b.v_l), self.pt(b.v_r));
-        let mut d2 = shortest_dist_from_segment(self.pt(a.v_r), self.pt(b.v_l), self.pt(b.v_r));
-        if d2 < d {
-            d = d2;
-            v = a.v_r;
-        }
-        d2 = shortest_dist_from_segment(self.pt(b.v_l), self.pt(a.v_l), self.pt(a.v_r));
-        if d2 < d {
-            d = d2;
-            tmp_e = e1;
-            v = b.v_l;
-        }
-        d2 = shortest_dist_from_segment(self.pt(b.v_r), self.pt(a.v_l), self.pt(a.v_r));
-        if d2 < d {
-            d = d2;
-            tmp_e = e1;
-            v = b.v_r;
-        }
-        if d > 1.0 {
-            return Ok(false); // not just a rounding intersection
-        }
-        let v2 = self.e(tmp_e).v_t;
-        self.remove_edge_from_vertex(v2, tmp_e)?;
-        if self.e(tmp_e).v_l == v2 {
-            self.em(tmp_e).v_l = v;
-        } else {
-            self.em(tmp_e).v_r = v;
-        }
-        self.em(tmp_e).v_t = v;
-        self.vm(v).edges.push(tmp_e);
-        self.vm(v).inner_lm = false; // #47
-        let vb = self.e(tmp_e).v_b;
-        if self.v(vb).inner_lm && self.get_loc_min_angle(vb) <= 0.0 {
-            self.vm(vb).inner_lm = false; // #44, 52
-        }
-        let kind = self.e(tmp_e).kind;
-        self.create_edge(v, v2, kind);
-        Ok(true)
-    }
-
-    fn fixup_edge_intersects(&mut self) -> Result<bool, Oops> {
-        let mut i1 = 0;
-        while i1 < self.all_edges.len() {
-            let e1 = self.all_edges[i1];
-            let mut i2 = i1 + 1;
-            while i2 < self.all_edges.len() {
-                let e2 = self.all_edges[i2];
-                let (a, b) = (*self.e(e1), *self.e(e2));
-                if self.pt(b.v_l).x >= self.pt(a.v_r).x {
-                    break; // every later edge is too far right
+    /// Checks every pair of edges that can meet: `None` if two of them cross (upstream instead
+    /// moves an end point of one when they cross within a unit of it, which can leave the
+    /// sweep inconsistent), otherwise the vertices that lie inside an edge, as (edge, vertex).
+    fn scan_edges(&self) -> Option<Vec<(Idx, Idx)>> {
+        // edges of ignored paths are no longer attached to a vertex
+        let mut boxes: Vec<(i64, i64, i64, i64, Idx)> = (0..self.edges.len() as Idx)
+            .filter(|&e| self.v(self.e(e).v_b).edges.contains(&e))
+            .map(|e| {
+                let ed = self.e(e);
+                let (l, r) = (self.pt(ed.v_l).x, self.pt(ed.v_r).x);
+                (l, r, self.pt(ed.v_t).y, self.pt(ed.v_b).y, e)
+            })
+            .collect();
+        boxes.sort_unstable();
+        let mut touches = Vec::new();
+        for (i, &(_, right, top, bottom, e1)) in boxes.iter().enumerate() {
+            let (v1, w1) = (self.e(e1).v_b, self.e(e1).v_t);
+            let (p1, q1) = (self.pt(v1), self.pt(w1));
+            for &(left2, _, top2, bottom2, e2) in &boxes[i + 1..] {
+                if left2 > right {
+                    break;
                 }
-                if self.pt(b.v_t).y < self.pt(a.v_b).y
-                    && self.pt(b.v_b).y > self.pt(a.v_t).y
-                    && segs_intersect(
-                        self.pt(b.v_l),
-                        self.pt(b.v_r),
-                        self.pt(a.v_l),
-                        self.pt(a.v_r),
-                    ) == IntersectKind::Intersect
-                    && !self.remove_intersection(e2, e1)?
-                {
-                    return Ok(false);
+                if bottom2 < top || top2 > bottom {
+                    continue;
                 }
-                i2 += 1;
+                let (v2, w2) = (self.e(e2).v_b, self.e(e2).v_t);
+                let (p2, q2) = (self.pt(v2), self.pt(w2));
+                if segments_cross(p1, q1, p2, q2) {
+                    return None;
+                }
+                for (e, (s, t), v) in [
+                    (e1, (p1, q1), v2),
+                    (e1, (p1, q1), w2),
+                    (e2, (p2, q2), v1),
+                    (e2, (p2, q2), w1),
+                ] {
+                    if strictly_inside(self.pt(v), s, t) {
+                        touches.push((e, v));
+                    }
+                }
             }
-            i1 += 1;
         }
-        Ok(true)
+        Some(touches)
     }
 
     fn split_edge(&mut self, long_e: Idx, short_e: Idx) -> Result<(), Oops> {
@@ -588,6 +568,159 @@ impl Delaunay {
         Ok(())
     }
 
+    /// Splits each edge at the vertices inside it. `add_path` drops collinear vertices, so a
+    /// vertex that another path shares can end up in the middle of an edge, where the sweep
+    /// would never connect to it.
+    fn split_edges_at(&mut self, mut touches: Vec<(Idx, Idx)>) -> Result<(), Oops> {
+        touches.sort_unstable_by_key(|&(e, v)| {
+            (e, distance_sqr_exact(self.pt(self.e(e).v_b), self.pt(v)))
+        });
+        touches.dedup();
+        // from the bottom up, each split leaves the rest of the edge as a new edge
+        for same_edge in touches.chunk_by(|a, b| a.0 == b.0) {
+            let mut rest = same_edge[0].0;
+            for &(_, v) in same_edge {
+                self.split_edge_at(rest, v)?;
+                rest = (self.edges.len() - 1) as Idx;
+            }
+        }
+        Ok(())
+    }
+
+    /// Removes pairs of edges between the same two vertices: a path that runs back along
+    /// itself, or two paths that share an edge, once collinear vertices are split. Such a
+    /// zero-width slit bounds no area, and the sweep cannot handle coincident edges.
+    fn remove_slits(&mut self) -> Result<(), Oops> {
+        for vi in 0..self.all_vertices.len() {
+            let v = self.all_vertices[vi];
+            let (mut i, mut lost_edges) = (0, false);
+            while i < self.v(v).edges.len() {
+                let e1 = self.v(v).edges[i];
+                let other = |s: &Self, e: Idx| {
+                    if s.e(e).v_b == v {
+                        s.e(e).v_t
+                    } else {
+                        s.e(e).v_b
+                    }
+                };
+                let w = other(self, e1);
+                let twin = self.v(v).edges[i + 1..]
+                    .iter()
+                    .copied()
+                    .find(|&e2| other(self, e2) == w);
+                match twin {
+                    Some(e2) => {
+                        for e in [e1, e2] {
+                            self.remove_edge_from_vertex(v, e)?;
+                            self.remove_edge_from_vertex(w, e)?;
+                        }
+                        self.reclassify_minimum(w);
+                        lost_edges = true;
+                    }
+                    None => i += 1,
+                }
+            }
+            if lost_edges {
+                self.reclassify_minimum(v);
+            }
+        }
+        Ok(())
+    }
+
+    /// Recomputes whether `v` is an inner local minimum after it lost edges.
+    fn reclassify_minimum(&mut self, v: Idx) {
+        let p = self.pt(v);
+        let edges = &self.v(v).edges;
+        let top = |e: Idx| {
+            if self.e(e).v_b == v {
+                self.e(e).v_t
+            } else {
+                self.e(e).v_b
+            }
+        };
+        if edges.iter().any(|&e| self.pt(top(e)).y > p.y) {
+            self.vm(v).inner_lm = false; // an edge goes down
+        } else if let [e1, e2] = edges[..] {
+            // as in add_path: the path arrives on the descending edge and leaves on the
+            // ascending one
+            let (descend, ascend) = match (self.e(e1).kind, self.e(e2).kind) {
+                (EdgeKind::Descend, EdgeKind::Ascend) => (e1, e2),
+                (EdgeKind::Ascend, EdgeKind::Descend) => (e2, e1),
+                _ => return,
+            };
+            let inner = left_turning(self.pt(top(descend)), p, self.pt(top(ascend)));
+            self.vm(v).inner_lm = inner;
+        }
+    }
+
+    /// Shortens `e` to end at `v` and adds an edge of the same kind from `v` to its old top.
+    fn split_edge_at(&mut self, e: Idx, v: Idx) -> Result<(), Oops> {
+        let old_t = self.e(e).v_t;
+        self.remove_edge_from_vertex(old_t, e)?;
+        self.em(e).v_t = v;
+        if self.e(e).v_l == old_t {
+            self.em(e).v_l = v;
+        } else {
+            self.em(e).v_r = v;
+        }
+        self.vm(v).edges.push(e);
+        // v now has an edge going down, so it is no local minimum (as upstream's
+        // RemoveIntersection, #47)
+        self.vm(v).inner_lm = false;
+        let kind = self.e(e).kind;
+        self.create_edge(v, old_t, kind);
+        Ok(())
+    }
+
+    /// Whether the region reaches below `v1` once `v2`, at the same point, is merged into it.
+    /// Upstream says so only if both are inner local minima. When both are local minima (no
+    /// edge leaves downwards) and the edges of one enclose the other's, the enclosing one
+    /// decides instead: a path in the notch of another, or a hole whose bottom is the outer
+    /// path's bottom.
+    fn merged_inner_lm(&self, v1: Idx, v2: Idx) -> bool {
+        let (f1, f2) = (self.v(v1).inner_lm, self.v(v2).inner_lm);
+        match (self.upward_span(v1), self.upward_span(v2)) {
+            (Some((l1, r1)), Some((l2, r2))) => {
+                let left_of = |a: Point64, b: Point64| upward_turn(b, a) >= 0;
+                if left_of(l1, l2) && left_of(r2, r1) {
+                    f1
+                } else if left_of(l2, l1) && left_of(r1, r2) {
+                    f2
+                } else {
+                    f1 && f2
+                }
+            }
+            _ => f1 && f2,
+        }
+    }
+
+    /// The leftmost and rightmost directions of `v`'s edges, if none of them leaves `v`
+    /// downwards (towards larger y).
+    fn upward_span(&self, v: Idx) -> Option<(Point64, Point64)> {
+        let p = self.pt(v);
+        let mut span: Option<(Point64, Point64)> = None;
+        for &e in &self.v(v).edges {
+            let other = if self.e(e).v_b == v {
+                self.e(e).v_t
+            } else {
+                self.e(e).v_b
+            };
+            let q = self.pt(other);
+            if q.y > p.y {
+                return None;
+            }
+            let d = Point64::new(q.x - p.x, q.y - p.y);
+            span = Some(match span {
+                None => (d, d),
+                Some((l, r)) => (
+                    if upward_turn(l, d) > 0 { d } else { l },
+                    if upward_turn(d, r) > 0 { d } else { r },
+                ),
+            });
+        }
+        span
+    }
+
     fn merge_dup_or_collinear_vertices(&mut self) -> Result<(), Oops> {
         if self.all_vertices.is_empty() {
             return Ok(());
@@ -599,9 +732,7 @@ impl Delaunay {
                 i1 = i2;
                 continue;
             }
-            if !self.v(v1).inner_lm || !self.v(v2).inner_lm {
-                self.vm(v1).inner_lm = false;
-            }
+            let inner = self.merged_inner_lm(v1, v2);
             let moved = std::mem::take(&mut self.vm(v2).edges);
             for &e in &moved {
                 let ed = self.em(e);
@@ -617,6 +748,7 @@ impl Delaunay {
                 }
             }
             self.vm(v1).edges.extend(moved);
+            self.vm(v1).inner_lm = inner;
             let mut ie = 0;
             while ie < self.v(v1).edges.len() {
                 let e1 = self.v(v1).edges[ie];
@@ -728,7 +860,71 @@ impl Delaunay {
                 e = ed.next_e;
             }
         }
+        // Upstream's search skips edges by their bounding boxes and can return a vertex hidden
+        // behind an edge; the loose edge then crosses it.
+        if !self.is_visible(v_best, v_above) {
+            v_best = self.nearest_visible_below(v_above);
+            if v_best == NONE {
+                return NONE;
+            }
+        }
         self.create_edge(v_best, v_above, EdgeKind::Loose)
+    }
+
+    /// Whether `v1` and `v2` share a row with a vertex strictly between them.
+    fn row_vertex_between(&self, v1: Idx, v2: Idx) -> bool {
+        let (p1, p2) = (self.pt(v1), self.pt(v2));
+        if p1.y != p2.y {
+            return false;
+        }
+        let (l, r) = (p1.x.min(p2.x), p1.x.max(p2.x));
+        // all_vertices is sorted by descending y, then ascending x
+        let start = self.all_vertices.partition_point(|&v| {
+            let p = self.pt(v);
+            p.y > p1.y || (p.y == p1.y && p.x <= l)
+        });
+        self.all_vertices[start..]
+            .iter()
+            .take_while(|&&v| self.pt(v).y == p1.y && self.pt(v).x < r)
+            .any(|&v| !self.v(v).edges.is_empty())
+    }
+
+    /// Whether segment `v1`-`v2` crosses no active edge and passes through none of their
+    /// vertices.
+    fn is_visible(&self, v1: Idx, v2: Idx) -> bool {
+        let (a, b) = (self.pt(v1), self.pt(v2));
+        let mut e = self.first_active;
+        while e != NONE {
+            let ed = self.e(e);
+            if segment_blocked(a, b, self.pt(ed.v_b), self.pt(ed.v_t)) {
+                return false;
+            }
+            e = ed.next_e;
+        }
+        true
+    }
+
+    /// The nearest swept vertex of an active edge that `v` can see.
+    fn nearest_visible_below(&self, v: Idx) -> Idx {
+        let p = self.pt(v);
+        let mut candidates = Vec::new();
+        let mut e = self.first_active;
+        while e != NONE {
+            let ed = self.e(e);
+            for c in [ed.v_b, ed.v_t] {
+                if c != v && self.pt(c).y >= p.y {
+                    candidates.push((distance_sqr_exact(p, self.pt(c)), c));
+                }
+            }
+            e = ed.next_e;
+        }
+        candidates.sort_unstable();
+        candidates.dedup();
+        candidates
+            .into_iter()
+            .map(|(_, c)| c)
+            .find(|&c| self.is_visible(c, v))
+            .unwrap_or(NONE)
     }
 
     fn horizontal_between(&self, v1: Idx, v2: Idx) -> Idx {
@@ -802,6 +998,9 @@ impl Delaunay {
             } else if pa.y > pp.y && self.e(e_alt).kind == EdgeKind::Descend {
                 return Ok(());
             }
+            if self.row_vertex_between(v_alt, v) {
+                return Ok(()); // the edge would pass through it
+            }
             let mut e_x = self.find_linking_edge(v_alt, v, pa.y < self.pt(v).y);
             if e_x == NONE {
                 if pa.y == self.pt(v).y
@@ -871,6 +1070,9 @@ impl Delaunay {
                 }
             } else if pa.y > pp.y && self.e(e_alt).kind == EdgeKind::Ascend {
                 return Ok(());
+            }
+            if self.row_vertex_between(v_alt, v) {
+                return Ok(()); // the edge would pass through it
             }
             let mut e_x = self.find_linking_edge(v_alt, v, pa.y > self.pt(v).y);
             if e_x == NONE {
@@ -969,13 +1171,6 @@ impl Delaunay {
         advance!();
         loop {
             self.loc_mins.push(v_prev);
-            let pp = self.pt(v_prev);
-            if self.lowermost == NONE
-                || pp.y > self.pt(self.lowermost).y
-                || (pp.y == self.pt(self.lowermost).y && pp.x < self.pt(self.lowermost).x)
-            {
-                self.lowermost = v_prev;
-            }
             i_next = next_i(i, len);
             if cross_product_sign_t(self.pt(v_prev), path[i], path[i_next]) == 0 {
                 advance!();
@@ -1013,15 +1208,9 @@ impl Delaunay {
             }
         }
         self.create_edge(v0, v_prev, EdgeKind::Descend);
-        let added = self.all_vertices.len() - vert_cnt;
-        let i = vert_cnt;
-        let tiny = |s: &Self, a: usize, b: usize| {
-            distance_sqr(s.pt(s.all_vertices[a]), s.pt(s.all_vertices[b])) <= 1.0
-        };
-        if added < 3
-            || (added == 3
-                && (tiny(self, i, i + 1) || tiny(self, i + 1, i + 2) || tiny(self, i + 2, i)))
-        {
+        // Upstream also drops triangles with a side of length 1 or less, although their area
+        // is real.
+        if self.all_vertices.len() - vert_cnt < 3 {
             for j in vert_cnt..self.all_vertices.len() {
                 let v = self.all_vertices[j];
                 self.vm(v).edges.clear(); // flag to ignore
@@ -1041,15 +1230,20 @@ impl Delaunay {
         Ok(self.all_vertices.len() > 2)
     }
 
-    fn execute(&mut self, paths: &Paths64) -> Result<Paths64, TriangulateError> {
+    fn execute(&mut self, paths: &Paths64, clockwise: bool) -> Result<Paths64, TriangulateError> {
         if !self.add_paths(paths)? {
             return Err(TriangulateError::NoPolygons);
         }
-        self.run().map_err(|_| TriangulateError::Fail)?
+        self.run(clockwise).map_err(|_| TriangulateError::Fail)?
     }
 
-    fn run(&mut self) -> Result<Result<Paths64, TriangulateError>, Oops> {
-        if self.v(self.lowermost).inner_lm {
+    /// `clockwise`: the input's total area is negative. Upstream decides this from the lowest
+    /// local minimum, which can belong to a hole, and flips a minimum that add_path queued
+    /// twice (after a collinear vertex) back again.
+    fn run(&mut self, clockwise: bool) -> Result<Result<Paths64, TriangulateError>, Oops> {
+        if clockwise {
+            self.loc_mins.sort_unstable();
+            self.loc_mins.dedup();
             while let Some(lm) = self.loc_mins.pop() {
                 let v = self.vm(lm);
                 v.inner_lm = !v.inner_lm;
@@ -1065,19 +1259,6 @@ impl Delaunay {
             self.loc_mins.clear();
         }
 
-        let edges = &self.edges;
-        let verts = &self.verts;
-        self.all_edges.sort_by(|&a, &b| {
-            let (xa, xb) = (
-                verts[edges[a as usize].v_l as usize].pt.x,
-                verts[edges[b as usize].v_l as usize].pt.x,
-            );
-            xa.cmp(&xb)
-        });
-        if !self.fixup_edge_intersects()? {
-            return Ok(Err(TriangulateError::PathsIntersect));
-        }
-
         let verts = &self.verts;
         self.all_vertices.sort_by(|&a, &b| {
             let (pa, pb) = (verts[a as usize].pt, verts[b as usize].pt);
@@ -1088,6 +1269,11 @@ impl Delaunay {
             }
         });
         self.merge_dup_or_collinear_vertices()?;
+        let Some(touches) = self.scan_edges() else {
+            return Ok(Err(TriangulateError::PathsIntersect));
+        };
+        self.split_edges_at(touches)?;
+        self.remove_slits()?;
 
         let mut curr_y = self.pt(self.all_vertices[0]).y;
         for vi in 0..self.all_vertices.len() {
@@ -1114,9 +1300,13 @@ impl Delaunay {
                             self.do_triangulate_right(e, vb, curr_y)?;
                         }
                     }
-                    let (a, b) = (self.v(lm).edges[0], self.v(lm).edges[1]);
-                    self.add_edge_to_actives(a);
-                    self.add_edge_to_actives(b);
+                    // a merged vertex can start more than two edges
+                    for k in 0..self.v(lm).edges.len() {
+                        let e = self.v(lm).edges[k];
+                        if self.e(e).kind != EdgeKind::Loose && self.e(e).v_b == lm {
+                            self.add_edge_to_actives(e);
+                        }
+                    }
                 }
                 while let Some(e) = self.horz_edges.pop() {
                     if self.edge_completed(e) {
@@ -1200,8 +1390,136 @@ impl Delaunay {
 
 /// Triangulates non-intersecting polygons (holes allowed). With `use_delaunay` the result
 /// is a constrained Delaunay triangulation.
+///
+/// The result always covers the input exactly; where the sweep cannot produce such a result
+/// (on some degenerate input), the error is [`TriangulateError::Fail`]. Crossing edges are
+/// [`TriangulateError::PathsIntersect`].
 pub fn triangulate(paths: &Paths64, use_delaunay: bool) -> Result<Paths64, TriangulateError> {
-    Delaunay::new(use_delaunay).execute(paths)
+    check_range(paths).map_err(|_| TriangulateError::CoordinateOutOfRange)?;
+    let clockwise = total_area_sign(paths) < 0;
+    let tris = Delaunay::new(use_delaunay).execute(paths, clockwise)?;
+    // The sweep is not proven correct on every degenerate input (touching or overlapping
+    // edges, pinched paths); never return a result that does not cover the input exactly.
+    if !covers_exactly(paths, &tris, clockwise) {
+        return Err(TriangulateError::Fail);
+    }
+    Ok(tris)
+}
+
+/// Whether the counter-clockwise `tris` cover the region of `paths` exactly: their boundary,
+/// with shared edges cancelled, equals the paths' boundary (oriented like the triangles), so
+/// their coverage equals the paths' winding number everywhere (exact).
+fn covers_exactly(paths: &Paths64, tris: &Paths64, clockwise: bool) -> bool {
+    let input_weight = if clockwise { -1 } else { 1 };
+    // Most edges cancel exactly, against their twin or the input edge they lie on, keyed by
+    // their ends in lexicographic order.
+    let edge_count = paths.iter().map(Vec::len).sum::<usize>() + 3 * tris.len();
+    type Ends = ((i64, i64), (i64, i64));
+    let mut segments: FxMap<Ends, i32> =
+        FxMap::with_capacity_and_hasher(edge_count, Default::default());
+    let mut add = |a: Point64, b: Point64, weight: i32| {
+        let (ka, kb) = ((a.x, a.y), (b.x, b.y));
+        if ka < kb {
+            *segments.entry((ka, kb)).or_default() += weight;
+        } else if kb < ka {
+            *segments.entry((kb, ka)).or_default() -= weight;
+        }
+    };
+    for p in paths {
+        for i in 0..p.len() {
+            add(p[i], p[(i + 1) % p.len()], input_weight);
+        }
+    }
+    for t in tris {
+        for i in 0..3 {
+            add(t[i], t[(i + 1) % 3], -1);
+        }
+    }
+    // The rest runs along input edges that the triangles split or join: per supporting line
+    // (reduced direction, offset), the signed coverage along it must cancel.
+    let mut lines: FxMap<(i64, i64, i128), Vec<(i128, i32)>> = FxMap::default();
+    for (&((ax, ay), (bx, by)), &weight) in &segments {
+        if weight == 0 {
+            continue;
+        }
+        // a precedes b, so the reduced direction already points the canonical way
+        let (dx, dy) = (bx - ax, by - ay);
+        let g = gcd(dx.unsigned_abs(), dy.unsigned_abs()) as i64;
+        let (ux, uy) = (dx / g, dy / g);
+        let offset = ux as i128 * ay as i128 - uy as i128 * ax as i128;
+        let along = |x: i64, y: i64| ux as i128 * x as i128 + uy as i128 * y as i128;
+        let events = lines.entry((ux, uy, offset)).or_default();
+        events.push((along(ax, ay), weight));
+        events.push((along(bx, by), -weight));
+    }
+    lines.into_values().all(|mut events| {
+        events.sort_unstable();
+        let mut sum = 0;
+        events.chunk_by(|a, b| a.0 == b.0).all(|same_t| {
+            sum += same_t.iter().map(|e| e.1).sum::<i32>();
+            sum == 0
+        })
+    })
+}
+
+type FxMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
+
+/// rustc's FxHash: much faster than the default hasher for integer keys. It is not
+/// collision-resistant, so crafted coordinates can make the check slow, never wrong.
+#[derive(Default)]
+struct FxHasher(u64);
+
+impl Hasher for FxHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(8) {
+            let mut word = [0; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            self.write_u64(u64::from_le_bytes(word));
+        }
+    }
+
+    fn write_u64(&mut self, n: u64) {
+        self.0 = (self.0.rotate_left(5) ^ n).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+
+    fn write_i64(&mut self, n: i64) {
+        self.write_u64(n as u64);
+    }
+
+    fn write_i128(&mut self, n: i128) {
+        self.write_u64(n as u64);
+        self.write_u64((n >> 64) as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+/// The sign of the paths' total area: exact while the sum fits in an i128 (one edge's term
+/// always does for coordinates in range), otherwise in floating point, which only has to get
+/// the sign of a huge total right.
+fn total_area_sign(paths: &Paths64) -> i32 {
+    let terms = || {
+        paths.iter().flat_map(|p| {
+            (0..p.len()).map(move |i| {
+                let (a, b) = (p[i], p[(i + 1) % p.len()]);
+                a.x as i128 * b.y as i128 - b.x as i128 * a.y as i128
+            })
+        })
+    };
+    match terms().try_fold(0i128, i128::checked_add) {
+        Some(sum) => sum.signum() as i32,
+        None if terms().map(|term| term as f64).sum::<f64>() < 0.0 => -1,
+        None => 1,
+    }
+}
+
+fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
 }
 
 /// Floating-point [`triangulate`]; coordinates are scaled by `10^decimal_places` (clamped to `0..=8`).

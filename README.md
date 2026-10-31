@@ -8,6 +8,8 @@ Z values. It has no dependencies and no `unsafe` code (`#![forbid(unsafe_code)]`
 
 The port follows the C++ library function by function, and its results are checked bit for bit
 against the C++ library. The checks run on thousands of random inputs for every operation.
+The triangulation is the exception: upstream has withdrawn it, and clipper2-rs maintains and
+fixes it (see [Triangulation](#triangulation)).
 
 ```toml
 [dependencies]
@@ -61,7 +63,11 @@ by a precision given in decimal places.
   number of cases per test (300 by default; releases are checked with 20,000).
 - **Upstream's own test suite:** all 49 gtest cases and their data files are ported in
   `tests/upstream*.rs`, with upstream's tolerances.
-- Both suites also run with the `usingz` feature.
+- **Triangulation** (`tests/triangulate.rs`) is checked against its definition instead, in
+  exact integer arithmetic: the triangles cover the input exactly, without overlaps or
+  T-junctions, and satisfy the Delaunay condition. The C++ library guards against regressions:
+  wherever its result is valid, ours must be valid too.
+- All suites also run with the `usingz` feature.
 
 ## Performance
 
@@ -76,27 +82,23 @@ clipper2-rs is faster.
 | `minkowski_sum` | 2,000 points | 0.93 |
 | `rect_clip` | 50,000 points | 0.96 |
 | `simplify_paths` | 50,000 points | 0.83 |
-| `triangulate` (with and without Delaunay) | 9,842 points | 0.68, 0.87 |
+| `triangulate` (without and with Delaunay) | 9,842 points | 0.86, 1.00 |
 
 Run the comparison yourself with `cargo bench -p clipper2-rs`.
 
 ## Differences from the C++ library
 
-Results are identical to upstream except in these cases:
+Results are identical to upstream, except for the triangulation (see
+[Triangulation](#triangulation)) and in these cases:
 
 1. **Order of equal intersections.** Upstream sorts intersections with `std::sort`, which leaves
    equal elements in whatever order the C++ standard library happens to produce. Results can
    therefore differ between libc++, libstdc++ and MSVC. clipper2-rs sorts stably, so its results
-   are the same on every platform. The same applies to the two sorts in the triangulation.
+   are the same on every platform.
    One upstream test case (`Polygons.txt` #168) depends on this order: libc++ gives 101
    polygons, a stable sort gives 99, and the stored value is 106 ± 5. Only that count is exempt
    in the ported test.
-2. **`triangulate` always terminates.** On some self-intersecting paths, upstream's outline walk
-   never ends and keeps allocating memory. clipper2-rs stops that walk after one full lap and
-   returns `TriangulateError::Degenerate`. See
-   [PolyClipping/Clipper2#6](https://github.com/PolyClipping/Clipper2/issues/6).
-
-3. **Invalid input gives an error instead of undefined behaviour.**
+2. **Invalid input gives an error instead of undefined behaviour.**
    - `Clipper64` and `ClipperOffset` reject integer coordinates outside
      `MIN_COORD..=MAX_COORD` with `ClipperError::CoordinateOutOfRange`. Upstream checks the range
      only when scaling floating-point input.
@@ -105,11 +107,45 @@ Results are identical to upstream except in these cases:
    - Empty paths given to the offsetter are skipped. Upstream reads out of bounds.
    - If the intersection list cannot be processed in order, `execute` returns
      `ClipperError::ExecuteFailed`. Upstream reads past the end of the list.
-   - An internal error in the triangulation is `TriangulateError::Fail` on every platform.
-     Upstream throws there only when `__cpp_exceptions` or `__EXCEPTIONS` is defined; built with
-     MSVC it carries on into undefined behaviour.
 
-Triangulation is marked as beta upstream.
+## Triangulation
+
+Upstream has withdrawn its triangulation and no longer maintains it
+([PolyClipping/Clipper2#6](https://github.com/PolyClipping/Clipper2/issues/6)); clipper2-rs
+maintains it. On exactly non-intersecting union output (20,000 random cases per shape, with
+and without Delaunay, in both orientations), upstream returns a wrong triangulation or fails
+for 2–3% of the medium-sized and 19–24% of the small-grid inputs, mostly without an error.
+clipper2-rs returns no wrong triangulation and fails on 0.005% and 0.26% of them. Its
+`triangulate`
+
+- never returns a wrong result: every result is checked, in exact integer arithmetic, to
+  cover each point as often as the input winds around it (exactly once inside valid input),
+  and `TriangulateError::Fail` is returned instead otherwise;
+- handles clockwise input like counter-clockwise input. Upstream fails on some of it: its
+  orientation fix can flip a local minimum back, and it takes the orientation from the lowest
+  local minimum, which can belong to a hole;
+- rejects coordinates outside `MIN_COORD..=MAX_COORD` with
+  `TriangulateError::CoordinateOutOfRange`;
+- returns an error, normally `TriangulateError::PathsIntersect`, for a boundary that crosses
+  itself. Upstream moves an end point of one of two edges that cross within a unit of it, which
+  can produce a wrong result. Union output can contain such crossings, as the boolean engine
+  rounds intersections to integers;
+- connects inner local minima only to vertices they can see, closes no fan across a vertex
+  further along the same row, splits edges at vertices that touching paths share, keeps
+  triangles with a side of length 1, and keeps the inner local minimum of a vertex shared by
+  several paths when the enclosing path has one there;
+- always terminates. On some self-intersecting paths, upstream's outline walk never ends and
+  keeps allocating memory; clipper2-rs stops it after one full lap and returns
+  `TriangulateError::Degenerate`;
+- sorts equal edges and vertices stably, as in the boolean engine;
+- reports an internal error as `TriangulateError::Fail` on every platform. Upstream throws there
+  only when `__cpp_exceptions` or `__EXCEPTIONS` is defined; built with MSVC it carries on into
+  undefined behaviour.
+
+Known limitation: on a tail of degenerate input (paths that run back along themselves or share
+edges with other paths, at small integer coordinates), `triangulate` fails where upstream
+happens to succeed: 0.08% of the small-grid cases above, none of the others. The tests bound
+this tail.
 
 ## The `usingz` feature
 
