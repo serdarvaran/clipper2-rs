@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-02)
 
 - Keep each offset group's distance sign local; adding a degenerate group no longer
   changes shrinking polygons into growing ones.
