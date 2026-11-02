@@ -11,13 +11,15 @@ use crate::polytree::{PolyTree, PolyTree64};
 
 /// An ellipse approximated by `steps` points (`steps <= 2` picks a count from the radii).
 /// `radius_y <= 0` means a circle.
+/// Returns an empty path for non-finite radii, non-positive `radius_x`, or a point
+/// count that cannot be allocated.
 pub fn ellipse<T: Coord>(
     center: Point<T>,
     radius_x: f64,
     mut radius_y: f64,
     mut steps: usize,
 ) -> Path<T> {
-    if radius_x <= 0.0 {
+    if !radius_x.is_finite() || !radius_y.is_finite() || radius_x <= 0.0 {
         return Vec::new();
     }
     if radius_y <= 0.0 {
@@ -26,12 +28,15 @@ pub fn ellipse<T: Coord>(
     if steps <= 2 {
         steps = (PI * ((radius_x + radius_y) / 2.0).sqrt()) as usize;
     }
+    let mut result = Vec::new();
+    if result.try_reserve_exact(steps.max(1)).is_err() {
+        return result;
+    }
     let si = (2.0 * PI / steps as f64).sin();
     let co = (2.0 * PI / steps as f64).cos();
     let (mut dx, mut dy) = (co, si);
     let cx = center.x.to_f64();
     let cy = center.y.to_f64();
-    let mut result = Vec::with_capacity(steps);
     result.push(Point::from_f64(cx + radius_x, cy));
     for _ in 1..steps {
         result.push(Point::from_f64(cx + radius_x * dx, cy + radius_y * dy));

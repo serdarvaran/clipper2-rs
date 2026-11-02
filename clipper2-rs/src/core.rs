@@ -10,8 +10,6 @@ use std::ops::{Add, Sub};
 pub const MAX_COORD: i64 = i64::MAX >> 2;
 /// Smallest coordinate accepted by the integer engine.
 pub const MIN_COORD: i64 = -MAX_COORD;
-pub(crate) const MAX_COORD_F: f64 = MAX_COORD as f64;
-pub(crate) const MIN_COORD_F: f64 = MIN_COORD as f64;
 /// Largest number of decimal places accepted by the floating-point APIs.
 pub const MAX_DECIMAL_PRECISION: i32 = 8;
 
@@ -23,7 +21,7 @@ pub enum ClipperError {
     CoordinateOutOfRange,
     /// A decimal precision is outside `-8..=8`.
     PrecisionOutOfRange,
-    /// A scale of zero was given.
+    /// A scale is zero, NaN or infinite.
     InvalidScale,
     /// The clipping engine could not complete the operation.
     ExecuteFailed,
@@ -38,7 +36,7 @@ impl fmt::Display for ClipperError {
         f.write_str(match self {
             Self::CoordinateOutOfRange => "Values exceed permitted range",
             Self::PrecisionOutOfRange => "Precision exceeds the permitted range",
-            Self::InvalidScale => "Invalid scale (either 0 or too large)",
+            Self::InvalidScale => "Scale must be finite and non-zero",
             Self::ExecuteFailed => "Clipping operation failed",
             Self::OddCoordinateCount => "There must be 2 values for each coordinate",
             Self::InvalidDelta => "Offset delta is not finite",
@@ -558,27 +556,6 @@ pub fn get_bounds_paths<T: Coord>(paths: &[Path<T>]) -> Rect<T> {
     r
 }
 
-/// Bounds of integer paths as `f64` (`GetBounds<double, int64_t>`).
-pub(crate) fn get_bounds_d<T: Coord>(paths: &[Path<T>]) -> RectD {
-    let mut r = RectD::invalid();
-    for p in paths.iter().flatten() {
-        let (x, y) = (p.x.to_f64(), p.y.to_f64());
-        if x < r.left {
-            r.left = x;
-        }
-        if x > r.right {
-            r.right = x;
-        }
-        if y < r.top {
-            r.top = y;
-        }
-        if y > r.bottom {
-            r.bottom = y;
-        }
-    }
-    r
-}
-
 /// Fails if any coordinate is outside `MIN_COORD..=MAX_COORD`.
 pub(crate) fn check_range(paths: &[Path64]) -> Result<(), ClipperError> {
     let ok = paths
@@ -602,46 +579,53 @@ pub fn check_precision(precision: i32) -> Result<f64, ClipperError> {
 }
 
 /// `ScalePath<T1, T2>(path, scale_x, scale_y)`.
+/// Scales must be finite and non-zero. Results must be finite, and integer targets
+/// must lie in `MIN_COORD..=MAX_COORD` after rounding.
 pub fn scale_path<T: Coord, U: Coord>(
     path: &[Point<T>],
     scale_x: f64,
     scale_y: f64,
 ) -> Result<Path<U>, ClipperError> {
-    if scale_x == 0.0 || scale_y == 0.0 {
-        return Err(ClipperError::InvalidScale);
-    }
-    Ok(path
-        .iter()
+    check_scale(scale_x, scale_y)?;
+    path.iter()
         .map(|p| {
-            p.with_xy(
-                scale_coord::<T, U>(p.x, scale_x),
-                scale_coord::<T, U>(p.y, scale_y),
-            )
+            Ok(p.with_xy(
+                scale_coord::<T, U>(p.x, scale_x)?,
+                scale_coord::<T, U>(p.y, scale_y)?,
+            ))
         })
-        .collect())
+        .collect()
 }
 
 #[inline]
-fn scale_coord<T: Coord, U: Coord>(v: T, scale: f64) -> U {
-    U::from_f64_round(v.to_f64() * scale)
+fn check_scale(scale_x: f64, scale_y: f64) -> Result<(), ClipperError> {
+    if !scale_x.is_finite() || !scale_y.is_finite() || scale_x == 0.0 || scale_y == 0.0 {
+        Err(ClipperError::InvalidScale)
+    } else {
+        Ok(())
+    }
 }
 
-/// `ScalePaths<T1, T2>(paths, scale_x, scale_y)`; integer targets are range checked first.
+#[inline]
+fn scale_coord<T: Coord, U: Coord>(v: T, scale: f64) -> Result<U, ClipperError> {
+    let scaled = v.to_f64() * scale;
+    if !scaled.is_finite() {
+        return Err(ClipperError::CoordinateOutOfRange);
+    }
+    let result = U::from_f64_round(scaled);
+    if U::INTEGRAL && !(MIN_COORD..=MAX_COORD).contains(&result.as_i64()) {
+        return Err(ClipperError::CoordinateOutOfRange);
+    }
+    Ok(result)
+}
+
+/// [`scale_path`] for several paths, with the same scale and coordinate checks.
 pub fn scale_paths<T: Coord, U: Coord>(
     paths: &[Path<T>],
     scale_x: f64,
     scale_y: f64,
 ) -> Result<Paths<U>, ClipperError> {
-    if U::INTEGRAL {
-        let r = get_bounds_d(paths);
-        if r.left * scale_x < MIN_COORD_F
-            || r.right * scale_x > MAX_COORD_F
-            || r.top * scale_y < MIN_COORD_F
-            || r.bottom * scale_y > MAX_COORD_F
-        {
-            return Err(ClipperError::CoordinateOutOfRange);
-        }
-    }
+    check_scale(scale_x, scale_y)?;
     paths
         .iter()
         .map(|p| scale_path(p, scale_x, scale_y))

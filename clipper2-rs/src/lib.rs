@@ -3,10 +3,10 @@
 //! clipping, Minkowski sums and differences, and constrained Delaunay triangulation.
 //!
 //! Results are bit-for-bit identical to the C++ library except where the repository README
-//! lists a deliberate difference (stable ordering of equal intersections, and errors instead
-//! of undefined behaviour on invalid input). The triangulation, which upstream has withdrawn,
-//! is maintained here: its results are checked to cover the input exactly, and differ from
-//! upstream's where those are wrong.
+//! lists a deliberate difference (stable ordering of equal intersections, errors instead of
+//! undefined behaviour on invalid input, and two offset corrections). The triangulation, which
+//! upstream has withdrawn, is maintained here: its results are checked to cover the input
+//! exactly, and differ from upstream's where those are wrong.
 //!
 //! ```
 //! use clipper2_rs::{FillRule, intersect, make_path};

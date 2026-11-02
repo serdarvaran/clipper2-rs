@@ -107,6 +107,20 @@ Results are identical to upstream, except for the triangulation (see
    - Empty paths given to the offsetter are skipped. Upstream reads out of bounds.
    - If the intersection list cannot be processed in order, `execute` returns
      `ClipperError::ExecuteFailed`. Upstream reads past the end of the list.
+   - Scaling rejects zero or non-finite factors with `ClipperError::InvalidScale`, and
+     non-finite coordinates or rounded integer results outside `MIN_COORD..=MAX_COORD`
+     with `ClipperError::CoordinateOutOfRange`. This includes negative scales and the
+     single-path helpers.
+   - Minkowski inputs are range checked before arithmetic, and floating-point Minkowski
+     operations accept precisions in `-8..=8` only.
+   - Offset and Minkowski operations propagate errors from their final union. An invalid
+     result is an error, rather than a successful empty path or tree. Zero-distance offset
+     calls also validate their inputs.
+   - `ellipse` returns an empty path for non-finite radii or a point count that cannot be
+     allocated, keeping its non-fallible API.
+3. **Offset corrections.** A degenerate polygon group no longer changes the sign of the
+   distance used for later groups. Single-point offsets use a 64-bit distance rather than
+   truncating it to 32 bits; this also fixes high-precision floating-point offsets.
 
 ## Triangulation
 

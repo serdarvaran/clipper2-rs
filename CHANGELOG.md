@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Keep each offset group's distance sign local; adding a degenerate group no longer
+  changes shrinking polygons into growing ones.
+- Remove the 32-bit distance limit from non-round single-point offsets.
+- Propagate final-union errors from offset and Minkowski operations instead of returning
+  successful empty geometry; validate zero-distance offsets too.
+- Reject non-finite coordinates and zero/non-finite scale factors. Check rounded integer
+  coordinates for both single-path and multi-path scaling, including negative scales.
+- Validate Minkowski operands before arithmetic and enforce floating-point precision limits.
+- Return an empty ellipse for non-finite radii or an unallocatable point count.
+
 ## 0.2.0 (2026-11-01)
 
 - Triangulation, which upstream has withdrawn, is maintained here and no longer follows upstream

@@ -3,8 +3,8 @@
 use std::f64::consts::PI;
 
 use crate::core::{
-    ClipType, ClipperError, FillRule, Path64, PathD, Paths64, Point64, PointD, Rect64, area,
-    check_range, cross_product_vec, dot_product_vec, get_line_intersect_pt, reflect_point,
+    ClipType, ClipperError, FillRule, MAX_COORD, Path64, PathD, Paths64, Point64, PointD, Rect64,
+    area, check_range, cross_product_vec, dot_product_vec, get_line_intersect_pt, reflect_point,
     strip_duplicates, translate_point,
 };
 use crate::engine::Clipper64;
@@ -348,14 +348,15 @@ impl ClipperOffset {
             });
             let mut cb: Option<DeltaCallback64> = checked.as_mut().map(|f| f as DeltaCallback64);
             let groups = std::mem::take(&mut self.groups);
-            for g in &groups {
-                self.do_group_offset(g, &mut cb);
-            }
+            let result = groups
+                .iter()
+                .try_for_each(|g| self.do_group_offset(g, &mut cb));
             self.groups = groups;
             if invalid_delta {
                 self.solution.clear();
                 return Err(ClipperError::InvalidDelta);
             }
+            result?;
         }
         Ok(())
     }
@@ -392,19 +393,11 @@ impl ClipperOffset {
         } else {
             FillRule::Positive
         };
-        // A failed union leaves the C++ solution empty.
         if tree {
-            Ok((
-                Vec::new(),
-                c.execute_tree(ClipType::Union, fill)
-                    .map(|t| t.0)
-                    .unwrap_or_default(),
-            ))
+            Ok((Vec::new(), c.execute_tree(ClipType::Union, fill)?.0))
         } else {
             Ok((
-                c.execute(ClipType::Union, fill)
-                    .map(|s| s.closed)
-                    .unwrap_or_default(),
+                c.execute(ClipType::Union, fill)?.closed,
                 PolyTree64::default(),
             ))
         }
@@ -637,16 +630,18 @@ impl ClipperOffset {
         self.solution.push(std::mem::take(&mut self.path_out));
     }
 
-    fn do_group_offset(&mut self, group: &Group, cb: &mut Option<DeltaCallback64>) {
+    fn do_group_offset(
+        &mut self,
+        group: &Group,
+        cb: &mut Option<DeltaCallback64>,
+    ) -> Result<(), ClipperError> {
         if group.end_type == EndType::Polygon {
-            if group.lowest_path_idx.is_none() {
-                self.delta = self.delta.abs();
-            }
-            self.group_delta = if group.is_reversed {
-                -self.delta
+            let delta = if group.lowest_path_idx.is_none() {
+                self.delta.abs()
             } else {
                 self.delta
             };
+            self.group_delta = if group.is_reversed { -delta } else { delta };
         } else {
             self.group_delta = self.delta.abs();
         }
@@ -671,6 +666,9 @@ impl ClipperOffset {
                 if self.group_delta < 1.0 {
                     continue;
                 }
+                if abs_delta.ceil() >= MAX_COORD as f64 {
+                    return Err(ClipperError::CoordinateOutOfRange);
+                }
                 let pt = path[0];
                 let mut out = if group.join_type == JoinType::Round {
                     let steps = if self.steps_per_rad > 0.0 {
@@ -680,7 +678,7 @@ impl ClipperOffset {
                     };
                     ellipse(pt, abs_delta, abs_delta, steps)
                 } else {
-                    let d = abs_delta.ceil() as i32 as i64;
+                    let d = abs_delta.ceil() as i64;
                     Rect64::new(pt.x - d, pt.y - d, pt.x + d, pt.y + d).as_path()
                 };
                 for p in &mut out {
@@ -703,6 +701,7 @@ impl ClipperOffset {
                 _ => self.offset_open_path(group, path, cb),
             }
         }
+        Ok(())
     }
 }
 
@@ -716,6 +715,7 @@ pub fn inflate_paths(
     arc_tolerance: f64,
 ) -> Result<Paths64, ClipperError> {
     if delta == 0.0 {
+        check_range(paths)?;
         return Ok(paths.clone());
     }
     let mut co = ClipperOffset::new(miter_limit, arc_tolerance, false, false);
@@ -733,17 +733,13 @@ pub fn inflate_paths_d(
     precision: i32,
     arc_tolerance: f64,
 ) -> Result<crate::PathsD, ClipperError> {
-    crate::core::check_precision(precision)?;
+    let scale = crate::core::check_precision(precision)?;
+    let scaled = crate::core::scale_paths(paths, scale, scale)?;
     if delta == 0.0 {
         return Ok(paths.clone());
     }
-    let scale = 10f64.powi(precision);
     let mut co = ClipperOffset::new(miter_limit, arc_tolerance * scale, false, false);
-    co.add_paths(
-        &crate::core::scale_paths(paths, scale, scale)?,
-        join_type,
-        end_type,
-    );
+    co.add_paths(&scaled, join_type, end_type);
     let solution = co.execute(delta * scale)?;
     crate::core::scale_paths(&solution, 1.0 / scale, 1.0 / scale)
 }
