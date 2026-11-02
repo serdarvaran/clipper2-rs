@@ -187,6 +187,15 @@ CLIPPER2_DIFF_CASES=20000 scripts/memguard.sh 2500 1800 cargo test --release --w
 
 The minimum supported Rust version is 1.85.
 
+## Support
+
+If clipper2-rs saves you time, you can support its development through GitHub Sponsors or crypto. Support is voluntary and does not change the licence.
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/serdarvaran)
+[![Donate Bitcoin](https://img.shields.io/badge/Bitcoin-BTC-F7931A?style=for-the-badge&logo=bitcoin&logoColor=white)](https://github.com/serdarvaran/serdarvaran#bitcoin)
+[![Donate Ethereum](https://img.shields.io/badge/Ethereum-ETH-627EEA?style=for-the-badge&logo=ethereum&logoColor=white)](https://github.com/serdarvaran/serdarvaran#ethereum)
+[![Donate Solana](https://img.shields.io/badge/Solana-SOL-9945FF?style=for-the-badge&logo=solana&logoColor=white)](https://github.com/serdarvaran/serdarvaran#solana)
+
 ## License
 
 clipper2-rs is a derivative work of Clipper2 and uses the same
